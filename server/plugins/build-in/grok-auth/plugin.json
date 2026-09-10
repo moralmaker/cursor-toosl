@@ -1,0 +1,17 @@
+{
+  "apiVersion": 1,
+  "id": "dev.cursortools.examples.grok-auth",
+  "name": "Grok",
+  "version": "0.1.7",
+  "author": "@moralmaker",
+  "minAppVersion": "0.1.0",
+  "icon": "assets/grok.svg",
+  "entry": "main.ts",
+  "permissions": {
+    "network": [
+      "auth.x.ai",
+      "api.x.ai",
+      "cli-chat-proxy.grok.com"
+    ]
+  }
+}

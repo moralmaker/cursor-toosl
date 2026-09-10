@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>当前被顶次数</title>
+  <style>
+    html, body { height: 100%; margin: 0; background: #0b1220; color: #e8eefc; font-family: ui-sans-serif, system-ui, sans-serif; }
+    body { display: grid; place-items: center; }
+    .card {
+      min-width: min(92vw, 560px);
+      padding: 48px 64px;
+      text-align: center;
+      background: #1b2436;
+      border-radius: 28px;
+      box-shadow: 0 24px 80px rgb(0 0 0 / 35%);
+    }
+    .label { margin-bottom: 20px; color: #8b9bb8; font-size: 18px; }
+    .value {
+      color: #3b82f6;
+      font-size: clamp(48px, 8vw, 76px);
+      font-weight: 600;
+      letter-spacing: 1px;
+      font-variant-numeric: tabular-nums;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="label">当前被顶次数</div>
+    <div class="value" id="count">0</div>
+  </div>
+  <script>
+    const el = document.getElementById("count");
+    const fmt = (n) => Number(n).toLocaleString("en-US");
+    async function refresh() {
+      try {
+        const response = await fetch("/api/stats", { cache: "no-store" });
+        const data = await response.json();
+        el.textContent = fmt(data.completions ?? 0);
+      } catch {
+        // Keep the last rendered count when the refresh fails.
+      }
+    }
+    refresh();
+    setInterval(refresh, 3000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+{
+  "name": "cursor-tools-ops",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npm run build:ui && wrangler dev",
+    "dev:ui": "vite --config admin-ui/vite.config.ts",
+    "build:ui": "vite build --config admin-ui/vite.config.ts",
+    "deploy": "npm run build:ui && wrangler deploy",
+    "hash-password": "node scripts/hash-password.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p admin-ui/tsconfig.json"
+  },
+  "dependencies": {
+    "hono": "^4.13.7",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260908.1",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.4",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vitest": "^3.2.4",
+    "wrangler": "^4.130.0"
+  }
+}

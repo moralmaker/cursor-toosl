@@ -1,0 +1,7 @@
+# 复制为 .dev.vars 后供 wrangler dev 使用。不要提交 .dev.vars。
+ADMIN_USERNAME=admin
+# 下面是密码 changeme123 的哈希。生产环境请用 npm run hash-password 重新生成。
+ADMIN_PASSWORD_HASH=pbkdf2-sha256$10000$9640657bcf2ac0ac8f0d1c38e566b576$1c939f498a3ac8d8f4140dc4e380d1474fea8d728873018bb8c18839696fa703
+SIGNING_SECRET=dev-signing-secret-at-least-32-chars!!
+# 可选：开启管理登录二次验证
+# ADMIN_TOTP_SECRET=

@@ -1,0 +1,19 @@
+listen = "0.0.0.0:8041"
+data_dir = "./data"
+# /status 管理接口；留空则关闭。
+admin_key = ""
+
+# 公共部署填多个账号；自建可只填自己的 Cursor accessToken。
+[[tokens]]
+label = "acct-a"
+value = "eyJ..."
+
+[rate_limit]
+# 自建团队可关。
+enabled = true
+per_device_per_minute = 240
+per_ip_per_minute = 1200
+
+[upstream]
+connect_timeout_ms = 5000
+request_timeout_ms = 60000
