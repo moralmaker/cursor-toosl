@@ -9,7 +9,7 @@ import {
   writeDockIconVisibility,
   writeSilentStart,
 } from "../../shared/native/appLifecycle";
-import { updateStore, useUpdateStore } from "../../shared/store/updateStore";
+import { formatUpdateProgress, updateStore, useUpdateStore } from "../../shared/store/updateStore";
 import { Button } from "../../shared/ui/Button";
 import { Switch } from "../../shared/ui/Switch";
 import { TitledCard } from "../../shared/ui/TitledCard";
@@ -20,7 +20,8 @@ export function AppLifecycleSettingsCard() {
   const message = useMessage();
   const native = hasNativeAppLifecycle();
   const dockVisibilitySetting = hasDockVisibilitySetting();
-  const { availableVersion, checking, installing } = useUpdateStore();
+  const { availableVersion, checking, installing, installProgress } = useUpdateStore();
+  const progressLabel = formatUpdateProgress(installProgress);
   const [version, setVersion] = useState("…");
   const [autostart, setAutostart] = useState(false);
   const [loadingAutostart, setLoadingAutostart] = useState(native);
@@ -155,7 +156,13 @@ export function AppLifecycleSettingsCard() {
       </div>
       {availableVersion
         ? <Button size="small" variant="primary" disabled={installing} onClick={() => void updateNow()}>
-            {installing ? t("安装中…") : t("下载并安装")}
+            {installing
+              ? installProgress?.phase === "install"
+                ? t("正在安装…")
+                : progressLabel
+                  ? t("下载中 {progress}", { progress: progressLabel })
+                  : t("下载中…")
+              : t("下载并安装")}
             <span className={styles.updateDot} aria-hidden="true" />
           </Button>
         : <Button size="small" disabled={!native || checking} onClick={() => void checkUpdate()}>

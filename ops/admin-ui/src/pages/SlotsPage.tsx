@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type SlotRecord } from "../api.ts";
 import { ConfirmDialog } from "../components/ConfirmDialog.tsx";
-import { emptySlot, fromSlot, SlotEditor, type SlotDraft } from "./SlotEditor.tsx";
+import { emptySlot, fromSlot, SlotEditor, type SlotDraft, toSlotInput } from "./SlotEditor.tsx";
 
 type SlotsPageProps = { onError: (message: string) => void };
 
@@ -24,12 +24,17 @@ export function SlotsPage({ onError }: SlotsPageProps) {
     if (!editing) {
       return;
     }
+    const input = toSlotInput(editing.draft);
+    if ("error" in input) {
+      onError(input.error);
+      return;
+    }
     setPending(true);
     try {
       if (editing.id) {
-        await api.updateSlot(editing.id, editing.draft);
+        await api.updateSlot(editing.id, input.value);
       } else {
-        await api.createSlot(editing.draft);
+        await api.createSlot(input.value);
       }
       setEditing(null);
       await refresh();
@@ -42,7 +47,12 @@ export function SlotsPage({ onError }: SlotsPageProps) {
 
   async function toggle(slot: SlotRecord) {
     try {
-      await api.updateSlot(slot.id, { ...fromSlot(slot), enabled: !slot.enabled });
+      const input = toSlotInput({ ...fromSlot(slot), enabled: !slot.enabled });
+      if ("error" in input) {
+        onError(input.error);
+        return;
+      }
+      await api.updateSlot(slot.id, input.value);
       await refresh();
     } catch (error) {
       onError(error instanceof Error ? error.message : "更新失败");
@@ -86,6 +96,7 @@ export function SlotsPage({ onError }: SlotsPageProps) {
               <h3>
                 {slot.target.title}{" "}
                 <span className={`badge ${slot.enabled ? "on" : ""}`}>{slot.enabled ? "启用" : "停用"}</span>
+                {slot.dismissible ? null : <span className="badge">不可关闭</span>}
               </h3>
               <p>{slot.target.description}</p>
               <p className="mono">
@@ -120,6 +131,7 @@ export function SlotsPage({ onError }: SlotsPageProps) {
           onChange={(draft) => setEditing({ ...editing, draft })}
           onCancel={() => setEditing(null)}
           onSave={() => void save()}
+          onError={onError}
         />
       ) : null}
       {removing ? (

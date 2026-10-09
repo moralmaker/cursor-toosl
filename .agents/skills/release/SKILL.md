@@ -7,6 +7,8 @@ description: Prepare, authorize, publish, troubleshoot, and verify Cursor TOOLS 
 
 Release through `.github/workflows/release.yml`. Preserve both updater formats: Tauri uses `latest.json`; legacy `v0.0.49` clients use `update.json`.
 
+The source repository `moralmaker/cursor-toosl` is private. The workflow builds there and publishes every Release, tag, and updater asset to the public repository `moralmaker/cursor-tools-releases` (tags are created on its `main`) with the `RELEASES_REPO_TOKEN` secret. Run every `gh release` check with `--repo moralmaker/cursor-tools-releases`.
+
 ## Publication authority
 
 - Only the repository author, GitHub user `moralmaker`, may authorize a live release.
@@ -53,7 +55,7 @@ The two listed Proto files are required build inputs (`server/build.rs`) and mus
 1. Inspect `git status`, fetch `origin/main`, and preserve unrelated user changes. Confirm the release commit is based on the current remote head.
 2. Choose stable or beta numbering explicitly. Update the desktop version in both manifests and lockfiles; do not change the independent `cursor-server` version merely to release the desktop app.
 3. Confirm the updater public key in `tauri.conf.json` matches `.tauri/cursor-tools.key.pub` without exposing the private key.
-4. Confirm `TAURI_SIGNING_PRIVATE_KEY` exists in GitHub Actions. `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` must be absent when the local key has no password.
+4. Confirm `TAURI_SIGNING_PRIVATE_KEY` and `RELEASES_REPO_TOKEN` exist in GitHub Actions. `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` must be absent when the local key has no password.
 5. Confirm neither the intended tag nor Release already exists.
 6. From `apps/desktop`, run:
 

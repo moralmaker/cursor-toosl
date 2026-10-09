@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isAbsoluteHttpUrl } from "./http.ts";
+import { compareSemver } from "./semver.ts";
 
 export const SLOT_LOCALES = ["all", "zh-CN", "en-US"] as const;
 export type SlotLocale = (typeof SLOT_LOCALES)[number];
@@ -26,14 +27,19 @@ const contentSchema = z.object({
   description: z.string().trim().min(1).max(2000),
   imageUrl: httpUrl,
   details: z.array(detailSchema).max(20),
-  button: z.object({
-    label: z.string().trim().min(1).max(50),
-    action: z.object({
-      type: z.literal("open_browser"),
-      url: httpUrl,
-    }),
-  }),
+  button: z
+    .object({
+      label: z.string().trim().min(1).max(50),
+      action: z.object({
+        type: z.literal("open_browser"),
+        url: httpUrl,
+      }),
+    })
+    .optional(),
 });
+
+// 1.0.0 及更早的桌面端把 content.button 当必填，缺按钮会让整份广告解析失败。
+const LAST_VERSION_REQUIRING_BUTTON = "1.0.0";
 
 const instantSchema = z
   .string()
@@ -46,6 +52,7 @@ const instantSchema = z
 
 export const slotInputSchema = z.object({
   enabled: z.boolean().default(true),
+  dismissible: z.boolean().default(true),
   placement: z.literal("menu").default("menu"),
   locale: z.enum(SLOT_LOCALES).default("all"),
   sortOrder: z.number().int().min(0).max(100000).default(0),
@@ -66,6 +73,7 @@ export type StoredSlot = SlotInput & {
 export type PublicSlot = {
   id: string;
   enabled: true;
+  dismissible: boolean;
   placement: "menu";
   target: SlotInput["target"];
   content: SlotInput["content"];
@@ -87,6 +95,7 @@ export function toPublicSlot(slot: StoredSlot): PublicSlot {
   return {
     id: slot.id,
     enabled: true,
+    dismissible: slot.dismissible,
     placement: "menu",
     target: slot.target,
     content: slot.content,
@@ -108,6 +117,14 @@ export function slotVisibleNow(slot: StoredSlot, nowIso: string): boolean {
     return false;
   }
   return true;
+}
+
+export function slotDismissedByClient(slot: StoredSlot, dismissedIds: ReadonlySet<string>): boolean {
+  return slot.dismissible && dismissedIds.has(slot.id);
+}
+
+export function slotSupportedByClient(slot: StoredSlot, appVersion: string): boolean {
+  return Boolean(slot.content.button) || compareSemver(appVersion, LAST_VERSION_REQUIRING_BUTTON) > 0;
 }
 
 export function slotMatchesLocale(slot: StoredSlot, locale: "zh-CN" | "en-US"): boolean {

@@ -4,12 +4,12 @@
 
 cursor-tools 是一个运行在本机的 Cursor 模型网关，帮助你在 Cursor 中使用自己配置的模型服务。
 
-[English README](./README.md) · [使用指南](https://docs.susuan.ai) · [下载](https://github.com/moralmaker/cursor-toosl/releases/latest) · [提交问题](https://github.com/moralmaker/cursor-toosl/issues)
+[English README](./README.md) · [使用指南](https://docs.susuan.ai) · [下载](https://github.com/moralmaker/cursor-tools-releases/releases/latest) · [提交问题](https://github.com/moralmaker/cursor-toosl/issues)
 
-[![Release](https://img.shields.io/github/v/release/moralmaker/cursor-toosl?style=flat-square)](https://github.com/moralmaker/cursor-toosl/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/moralmaker/cursor-toosl/total?style=flat-square)](https://github.com/moralmaker/cursor-toosl/releases)
+[![Release](https://img.shields.io/github/v/release/moralmaker/cursor-tools-releases?style=flat-square)](https://github.com/moralmaker/cursor-tools-releases/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/moralmaker/cursor-tools-releases/total?style=flat-square)](https://github.com/moralmaker/cursor-tools-releases/releases)
 [![License](https://img.shields.io/github/license/moralmaker/cursor-toosl?style=flat-square)](./LICENSE)
-[![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey?style=flat-square)](https://github.com/moralmaker/cursor-toosl/releases/latest)
+[![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey?style=flat-square)](https://github.com/moralmaker/cursor-tools-releases/releases/latest)
 
 </div>
 
@@ -39,7 +39,7 @@ cursor-tools 是一个开源的本地模型网关。它在你的设备上运行�
 
 ## 快速开始
 
-1. 从 [GitHub Releases](https://github.com/moralmaker/cursor-toosl/releases/latest) 下载适合你操作系统的最新版本。
+1. 从 [GitHub Releases](https://github.com/moralmaker/cursor-tools-releases/releases/latest) 下载适合你操作系统的最新版本。
 2. 启动 cursor-tools，打开 **Cursor 配置**，按提示初始化本地 CA（证书颁发机构）。
 3. 在模型设置中添加模型，填写服务地址、API Key 和模型名称，然后保存并运行 **测试**。
 4. 确认测试通过后，保持 cursor-tools 运行。

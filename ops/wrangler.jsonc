@@ -15,12 +15,28 @@
     {
       "binding": "DB",
       "database_name": "cursor-tools-ops",
-      "database_id": "REPLACE_WITH_YOUR_DATABASE_ID",
+      "database_id": "efd31268-46ca-49b6-af35-90ce40419743",
       "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "IMAGES",
+      "bucket_name": "cursor-tools-ops-images"
+    },
+    {
+      "binding": "RELEASES",
+      "bucket_name": "cursor-tools-ops-releases"
     }
   ],
   "vars": {
     "ADMIN_USERNAME": "admin",
     "PUBLIC_CACHE_TTL": "300"
-  }
+  },
+  "routes": [
+    {
+      "pattern": "ops.susuan.ai",
+      "custom_domain": true
+    }
+  ]
 }

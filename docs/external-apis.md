@@ -131,6 +131,8 @@ GET {origin}/api/v1/ads?placement=menu
 | `target.imageUrl` / `content.imageUrl` / `content.button.action.url` | 必须是带 host 的 `http` 或 `https` 绝对地址 |
 | `action.type` | 只能是 `"open_browser"`（snake_case） |
 | `details` | 可空数组 |
+| `dismissible` | 可省略，默认 `true`。`false` 时客户端不显示关闭按钮，并忽略该 slot 以前的本地关闭记录；ops 也不再按 `disable-ad-ids` 过滤它 |
+| `content.button` | 可省略；省略时弹层不显示按钮。出现时 `label` 与 `action` 都必填。1.0.0 及更早客户端要求必填，ops 会对这些版本过滤掉无按钮的 slot |
 
 客户端随后会对两个 `imageUrl` 再发 `GET`（超时 10s），只接受：
 
@@ -231,7 +233,7 @@ TAB 模式：
 
 ```
 GET https://ops.susuan.ai/api/v1/updates/latest.json
-GET https://github.com/moralmaker/cursor-toosl/releases/latest/download/latest.json
+GET https://github.com/moralmaker/cursor-tools-releases/releases/latest/download/latest.json
 ```
 
 无鉴权。发布流水线生成，形状为 Tauri updater manifest：
@@ -244,7 +246,7 @@ GET https://github.com/moralmaker/cursor-toosl/releases/latest/download/latest.j
   "platforms": {
     "<tauri-platform-key>": {
       "signature": "<minisign 签名原文>",
-      "url": "https://github.com/moralmaker/cursor-toosl/releases/download/v0.1.7/<asset>"
+      "url": "https://github.com/moralmaker/cursor-tools-releases/releases/download/v0.1.7/<asset>"
     }
   }
 }
@@ -266,7 +268,7 @@ GET https://ops.susuan.ai/api/v1/updates/portable-latest.json
   "platforms": {
     "windows-x86_64": {
       "signature": "<签名>",
-      "url": "https://github.com/moralmaker/cursor-toosl/releases/download/v0.1.7/cursor-tools-desktop.exe"
+      "url": "https://github.com/moralmaker/cursor-tools-releases/releases/download/v0.1.7/cursor-tools-desktop.exe"
     }
   }
 }

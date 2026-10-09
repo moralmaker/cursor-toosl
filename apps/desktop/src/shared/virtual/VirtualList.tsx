@@ -17,6 +17,7 @@ export type VirtualListProps<TItem> = {
   estimatedItemHeight?: number;
   scrollbarInsetTop?: CSSProperties["top"];
   onReady?: (api: VirtualListApi) => void;
+  onContentHeightChange?: (height: number) => void;
 };
 
 export function VirtualList<TItem>({
@@ -32,6 +33,7 @@ export function VirtualList<TItem>({
   estimatedItemHeight = 54,
   scrollbarInsetTop,
   onReady,
+  onContentHeightChange,
 }: VirtualListProps<TItem>) {
   const getKey = useCallback((item: TItem, index: number) => {
     const key = typeof itemKey === "function" ? itemKey(item, index) : item[itemKey];
@@ -55,6 +57,7 @@ export function VirtualList<TItem>({
       scrollbarSize={7}
       scrollbarInsetTop={scrollbarInsetTop}
       onReady={onReady}
+      onContentHeightChange={onContentHeightChange}
       className={className}
       contentClassName={contentClassName}
       style={style}

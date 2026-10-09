@@ -153,6 +153,7 @@ export function VirtualList<TItem>(props: VirtualListProps<TItem>) {
     style,
     onRangeChange,
     onReady,
+    onContentHeightChange,
   } = props
 
   const itemSnapshot = useMemo(
@@ -400,6 +401,12 @@ export function VirtualList<TItem>(props: VirtualListProps<TItem>) {
     onReady?.(api)
   }, [api, onReady])
 
+  const contentHeight = contentInsetTop + rangeMap.totalSize + contentInsets.bottom
+
+  useLayoutEffect(() => {
+    onContentHeightChange?.(contentHeight)
+  }, [contentHeight, onContentHeightChange])
+
   const visibleItems = []
   for (let index = renderRange.start; index < renderRange.end; index += 1) {
     visibleItems.push(index)
@@ -411,7 +418,7 @@ export function VirtualList<TItem>(props: VirtualListProps<TItem>) {
       contentClassName={contentClassName}
       contentRef={setContentRef}
       style={style}
-      contentHeight={contentInsetTop + rangeMap.totalSize + contentInsets.bottom}
+      contentHeight={contentHeight}
       onReady={(scrollApi) => {
         scrollApiRef.current = scrollApi
       }}

@@ -13,7 +13,7 @@ describe("parseDeviceHeaders", () => {
   });
 
   it("rejects a missing device, os, or version header", () => {
-    expect(parseDeviceHeaders({ ...valid, language: undefined, deviceId: "" })).toBe(
+    expect(parseDeviceHeaders({ ...valid, deviceId: "" })).toBe(
       "missing required client headers",
     );
   });

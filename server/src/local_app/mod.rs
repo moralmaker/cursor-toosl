@@ -187,9 +187,21 @@ impl CursorHarness {
             .map(settings::settings_match)
             .transpose()?
             .unwrap_or(false);
-        if !settings_applied {
-            process::terminate_cursor().await?;
+        let stopped = if settings_applied {
+            None
+        } else {
+            process::stop_cursor().await?
+        };
+        let applied = self.apply(&mut proxy, backend_addr).await;
+        if let Some(cursor) = stopped {
+            let launched = cursor.launch().await;
+            applied?;
+            return launched;
         }
+        applied
+    }
+
+    async fn apply(&self, proxy: &mut ProxyRuntime, backend_addr: SocketAddr) -> Result<()> {
         if proxy.running() {
             if let Some(url) = proxy.url() {
                 apply_cursor_configuration(&url).await?;

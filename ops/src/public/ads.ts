@@ -6,7 +6,9 @@ import { writeAudit } from "../db/audit.ts";
 import {
   clientLocale,
   isUuid,
+  slotDismissedByClient,
   slotMatchesLocale,
+  slotSupportedByClient,
   slotVisibleNow,
   toPublicSlot,
 } from "../domain/slot.ts";
@@ -49,7 +51,8 @@ adsRoutes.get("/api/v1/ads", async (c) => {
   const slots = (await listSlots(dbFrom(c)))
     .filter((slot) => slotVisibleNow(slot, now))
     .filter((slot) => slotMatchesLocale(slot, locale))
-    .filter((slot) => !disabled.has(slot.id))
+    .filter((slot) => !slotDismissedByClient(slot, disabled))
+    .filter((slot) => slotSupportedByClient(slot, client.version))
     .map(toPublicSlot);
 
   const body = JSON.stringify({ slots });

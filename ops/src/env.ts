@@ -1,5 +1,7 @@
 export type Bindings = {
   DB: D1Database;
+  IMAGES: R2Bucket;
+  RELEASES: R2Bucket;
   ASSETS: Fetcher;
   ADMIN_USERNAME: string;
   ADMIN_PASSWORD_HASH: string;

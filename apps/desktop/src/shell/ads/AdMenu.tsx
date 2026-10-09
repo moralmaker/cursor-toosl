@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { Marquee } from "react-css-marquee";
 import { Icon } from "../../shared/ui/Icon";
 import { windowCloseIcon } from "../../shared/ui/icons";
-import type { AdSlot } from "./types";
+import { adDismissible, type AdSlot } from "./types";
 import styles from "./Ads.module.scss";
 
 type AdMenuProps = {
@@ -82,7 +82,7 @@ export function AdMenu({ ads, activeAdId, dismissingAdId, readAdIds, triggerRefs
           <OverflowText className={styles.menuSubtitle}>{ad.target.description}</OverflowText>
         </div>
       </button>
-      <button
+      {adDismissible(ad) && <button
         type="button"
         className={styles.menuDismiss}
         aria-label={`${t("不再显示广告")}：${ad.target.title}`}
@@ -92,7 +92,7 @@ export function AdMenu({ ads, activeAdId, dismissingAdId, readAdIds, triggerRefs
         onClick={() => onDismiss(ad)}
       >
         <Icon icon={windowCloseIcon} size="1em" />
-      </button>
+      </button>}
     </div>)}
   </div>;
 }

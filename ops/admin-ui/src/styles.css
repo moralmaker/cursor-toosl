@@ -120,6 +120,8 @@ input, select, textarea {
 textarea { min-height: 88px; resize: vertical; }
 .inline { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .checks { display: flex; gap: 16px; align-items: center; color: var(--ink); }
+.image-field { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+.image-field button { white-space: nowrap; }
 
 .preview { padding: 20px; border-left: 1px solid var(--line); }
 .preview-card, .preview-modal {

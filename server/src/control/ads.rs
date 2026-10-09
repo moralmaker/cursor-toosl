@@ -49,9 +49,15 @@ pub struct AdRuntime {
 pub struct AdSlot {
     pub id: String,
     pub enabled: bool,
+    #[serde(default = "dismissible_by_default")]
+    pub dismissible: bool,
     pub placement: AdPlacement,
     pub target: AdTarget,
     pub content: AdContent,
+}
+
+fn dismissible_by_default() -> bool {
+    true
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -75,7 +81,8 @@ pub struct AdContent {
     pub description: String,
     pub image_url: String,
     pub details: Vec<AdDetail>,
-    pub button: AdButton,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub button: Option<AdButton>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -115,7 +122,9 @@ impl AdRuntime {
         for slot in &self.slots {
             validate_http_url(&slot.target.image_url, "target.imageUrl")?;
             validate_http_url(&slot.content.image_url, "content.imageUrl")?;
-            validate_http_url(&slot.content.button.action.url, "content.button.action.url")?;
+            if let Some(button) = &slot.content.button {
+                validate_http_url(&button.action.url, "content.button.action.url")?;
+            }
         }
         Ok(self)
     }
@@ -366,6 +375,7 @@ mod tests {
                 {
                   "id": "59304605-01b6-4787-897f-8c7184bb54fc",
                   "enabled": true,
+                  "dismissible": false,
                   "placement": "menu",
                   "target": {
                     "title": "作者寄语",
@@ -390,10 +400,43 @@ mod tests {
         let runtime = runtime.into_menu_slots().unwrap();
         assert_eq!(runtime.slots.len(), 1);
         assert_eq!(runtime.slots[0].id, "59304605-01b6-4787-897f-8c7184bb54fc");
+        assert!(!runtime.slots[0].dismissible);
         assert_eq!(
-            runtime.slots[0].content.button.action.url,
+            runtime.slots[0].content.button.as_ref().unwrap().action.url,
             "https://example.com"
         );
+    }
+
+    #[test]
+    fn accepts_slots_without_a_button() {
+        let runtime: AdRuntime = serde_json::from_str(
+            r#"{
+              "slots": [
+                {
+                  "id": "59304605-01b6-4787-897f-8c7184bb54fc",
+                  "enabled": true,
+                  "placement": "menu",
+                  "target": {
+                    "title": "作者寄语",
+                    "description": "短描述",
+                    "imageUrl": "https://example.com/icon.jpg"
+                  },
+                  "content": {
+                    "title": "弹层标题",
+                    "description": "弹层描述",
+                    "imageUrl": "https://example.com/banner.png",
+                    "details": []
+                  }
+                }
+              ]
+            }"#,
+        )
+        .unwrap();
+        let runtime = runtime.into_menu_slots().unwrap();
+        assert!(runtime.slots[0].dismissible);
+        assert!(runtime.slots[0].content.button.is_none());
+        let serialized = serde_json::to_value(&runtime).unwrap();
+        assert!(serialized["slots"][0]["content"].get("button").is_none());
     }
 
     #[test]

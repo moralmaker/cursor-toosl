@@ -15,6 +15,8 @@ ops/
 └── admin-ui/                  # React 管理台（构建后由 Worker 托管）
 ```
 
+存储：D1 存广告位 / 版本 / 会话 / 审计；R2 桶 `cursor-tools-ops-images` 存管理台上传的广告图；R2 桶 `cursor-tools-ops-releases` 存桌面更新包（`GET /api/v1/updates/assets/:name`），避免客户端直连 GitHub 过慢。
+
 ## 接口契约
 
 ### 拉取广告
@@ -55,6 +57,10 @@ GET /api/v1/ads?placement=menu
 }
 ```
 
+`dismissible`（管理台「允许用户关闭」）为 `false` 时，客户端不显示关闭按钮，`disable-ad-ids` 对该 slot 不生效，之前关闭过的用户也会重新看到。
+
+`content.button` 可省略（管理台按钮文案与链接都留空即可）。`X-Cursor-Assistant-Version` ≤ 1.0.0 的客户端把按钮当必填，不会收到无按钮的 slot。
+
 附加头：`X-Content-Signature: sha256=<HMAC-SHA256(SIGNING_SECRET, raw body)>`。`placement` 不是 `menu` 或缺头时返回 400。
 
 ### 关闭广告
@@ -66,6 +72,15 @@ Content-Type: application/json
 ```
 
 同上设备 / OS / 版本头。任意 2xx 即可，本服务返回 204。按 `(ad_id, device_id)` upsert。
+
+### 广告图
+
+```
+POST /api/admin/images          # 需登录；请求体为图片原始字节
+GET  /api/v1/images/{sha256}.{png|jpg|gif|webp|avif}
+```
+
+上传按文件头识别格式（拒绝 SVG / HTML），上限 10 MiB，与桌面端缓存限制一致。对象以内容 SHA-256 命名，公开地址永久缓存（`immutable`）。管理台图片字段既可上传，也可直接填外链。
 
 ### 更新清单
 
@@ -83,6 +98,11 @@ cd ops
 npm install
 npx wrangler login
 npx wrangler d1 create cursor-tools-ops
+npx wrangler r2 bucket create cursor-tools-ops-images
+npx wrangler r2 bucket create cursor-tools-ops-releases
+# 上传更新包示例（把 latest.json 里对应平台的 url 改成下方公开地址）：
+# npx wrangler r2 object put cursor-tools-ops-releases/<asset> --file=<local> --content-type=application/octet-stream --remote
+# 公开地址：https://ops.susuan.ai/api/v1/updates/assets/<asset>
 ```
 
 把返回的 `database_id` 填进 [`wrangler.jsonc`](wrangler.jsonc)。
@@ -116,7 +136,7 @@ cp .dev.vars.example .dev.vars
 npm run hash-password            # 把输出写入 .dev.vars 的 ADMIN_PASSWORD_HASH
 npx wrangler d1 migrations apply cursor-tools-ops --local
 npx wrangler d1 execute cursor-tools-ops --local --file=seed.sql
-npm run dev                      # http://127.0.0.1:8787/admin/
+npm run dev                      # http://127.0.0.1:8787/admin/ ，R2 由 wrangler 本地模拟
 npm test
 ```
 

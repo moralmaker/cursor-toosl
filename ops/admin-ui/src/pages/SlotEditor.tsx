@@ -1,12 +1,35 @@
 import { useState } from "react";
-import type { SlotRecord } from "../api.ts";
+import type { SlotButton, SlotRecord } from "../api.ts";
 import { Field, Select, TextArea, TextInput } from "../components/Field.tsx";
+import { ImageField } from "../components/ImageField.tsx";
 
-export type SlotDraft = Omit<SlotRecord, "id" | "createdAt" | "updatedAt">;
+type SlotInput = Omit<SlotRecord, "id" | "createdAt" | "updatedAt">;
+
+export type SlotDraft = Omit<SlotInput, "content"> & {
+  content: Omit<SlotInput["content"], "button"> & { button: SlotButton };
+};
+
+function emptyButton(): SlotButton {
+  return { label: "", action: { type: "open_browser", url: "" } };
+}
+
+export function toSlotInput(draft: SlotDraft): { value: SlotInput } | { error: string } {
+  const { button, ...content } = draft.content;
+  const label = button.label.trim();
+  const url = button.action.url.trim();
+  if (!label && !url) {
+    return { value: { ...draft, content } };
+  }
+  if (!label || !url) {
+    return { error: "按钮文案和按钮链接需同时填写，或同时留空" };
+  }
+  return { value: { ...draft, content: { ...content, button: { label, action: { type: "open_browser", url } } } } };
+}
 
 export function emptySlot(): SlotDraft {
   return {
     enabled: true,
+    dismissible: true,
     placement: "menu",
     locale: "all",
     sortOrder: 0,
@@ -18,7 +41,7 @@ export function emptySlot(): SlotDraft {
       description: "",
       imageUrl: "",
       details: [],
-      button: { label: "打开", action: { type: "open_browser", url: "" } },
+      button: emptyButton(),
     },
   };
 }
@@ -26,13 +49,14 @@ export function emptySlot(): SlotDraft {
 export function fromSlot(slot: SlotRecord): SlotDraft {
   return {
     enabled: slot.enabled,
+    dismissible: slot.dismissible,
     placement: slot.placement,
     locale: slot.locale,
     sortOrder: slot.sortOrder,
     startsAt: slot.startsAt,
     endsAt: slot.endsAt,
     target: slot.target,
-    content: slot.content,
+    content: { ...slot.content, button: slot.content.button ?? emptyButton() },
   };
 }
 
@@ -42,10 +66,11 @@ type SlotEditorProps = {
   onChange: (draft: SlotDraft) => void;
   onCancel: () => void;
   onSave: () => void;
+  onError: (message: string) => void;
   pending: boolean;
 };
 
-export function SlotEditor({ title, draft, onChange, onCancel, onSave, pending }: SlotEditorProps) {
+export function SlotEditor({ title, draft, onChange, onCancel, onSave, onError, pending }: SlotEditorProps) {
   const [detailLabel, setDetailLabel] = useState("");
   const [detailValue, setDetailValue] = useState("");
 
@@ -72,6 +97,17 @@ export function SlotEditor({ title, draft, onChange, onCancel, onSave, pending }
                   onChange={(event) => patch({ enabled: event.target.checked })}
                 />
                 启用
+              </label>
+              <label
+                style={{ flexDirection: "row", alignItems: "center" }}
+                title="关闭后客户端不显示 ×，之前关闭过的用户也会重新看到"
+              >
+                <input
+                  type="checkbox"
+                  checked={draft.dismissible}
+                  onChange={(event) => patch({ dismissible: event.target.checked })}
+                />
+                允许用户关闭
               </label>
               <Field label="语言">
                 <Select
@@ -119,12 +155,12 @@ export function SlotEditor({ title, draft, onChange, onCancel, onSave, pending }
                 onChange={(event) => patch({ target: { ...draft.target, description: event.target.value } })}
               />
             </Field>
-            <Field label="菜单图 URL">
-              <TextInput
-                value={draft.target.imageUrl}
-                onChange={(event) => patch({ target: { ...draft.target, imageUrl: event.target.value } })}
-              />
-            </Field>
+            <ImageField
+              label="菜单图"
+              value={draft.target.imageUrl}
+              onChange={(imageUrl) => patch({ target: { ...draft.target, imageUrl } })}
+              onError={onError}
+            />
             <Field label="弹层标题">
               <TextInput
                 value={draft.content.title}
@@ -137,14 +173,14 @@ export function SlotEditor({ title, draft, onChange, onCancel, onSave, pending }
                 onChange={(event) => patch({ content: { ...draft.content, description: event.target.value } })}
               />
             </Field>
-            <Field label="弹层图 URL">
-              <TextInput
-                value={draft.content.imageUrl}
-                onChange={(event) => patch({ content: { ...draft.content, imageUrl: event.target.value } })}
-              />
-            </Field>
+            <ImageField
+              label="弹层图"
+              value={draft.content.imageUrl}
+              onChange={(imageUrl) => patch({ content: { ...draft.content, imageUrl } })}
+              onError={onError}
+            />
             <div className="inline">
-              <Field label="按钮文案">
+              <Field label="按钮文案（可选）">
                 <TextInput
                   value={draft.content.button.label}
                   onChange={(event) =>
@@ -154,7 +190,7 @@ export function SlotEditor({ title, draft, onChange, onCancel, onSave, pending }
                   }
                 />
               </Field>
-              <Field label="按钮链接">
+              <Field label="按钮链接（可选）">
                 <TextInput
                   value={draft.content.button.action.url}
                   onChange={(event) =>
@@ -240,9 +276,11 @@ export function SlotEditor({ title, draft, onChange, onCancel, onSave, pending }
                   </li>
                 ))}
               </ul>
-              <button className="primary" type="button">
-                {draft.content.button.label || "打开"}
-              </button>
+              {draft.content.button.label.trim() ? (
+                <button className="primary" type="button">
+                  {draft.content.button.label}
+                </button>
+              ) : null}
             </div>
           </div>
         </div>

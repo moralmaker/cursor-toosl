@@ -33,6 +33,7 @@ export interface VirtualListProps<TItem> {
   style?: CSSProperties
   onRangeChange?: (range: { start: number; end: number }) => void
   onReady?: (api: VirtualListApi) => void
+  onContentHeightChange?: (height: number) => void
 }
 
 export interface VirtualTreeNode {

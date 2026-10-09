@@ -7,7 +7,7 @@ import { api } from "../shared/api";
 import { AdMenu } from "./ads/AdMenu";
 import { FloatingAd } from "./ads/FloatingAd";
 import { loadCachedAds, saveCachedAds } from "./ads/cache";
-import { AdActionType, type AdAction, type AdSlot } from "./ads/types";
+import { AdActionType, adDismissible, type AdAction, type AdSlot } from "./ads/types";
 import { PageLayout } from "./layout/PageLayout";
 import { Card } from "../shared/ui/Card";
 import { ConfirmDialog } from "../shared/ui/ConfirmDialog";
@@ -69,7 +69,7 @@ export function AppLayout() {
   dismissedAdIdsRef.current = dismissedAdIds;
   const adTriggers = useRef(new Map<string, HTMLButtonElement>());
   const closeAd = useCallback(() => setActiveAd(null), []);
-  const visibleAds = ads.filter((ad) => ad.enabled && ad.placement === "menu" && !dismissedAdIds.has(ad.id));
+  const visibleAds = ads.filter((ad) => ad.enabled && ad.placement === "menu" && !(adDismissible(ad) && dismissedAdIds.has(ad.id)));
   const menuItems: MenuItem[] = [
     { kind: "page", path: "/", label: t("数据概览"), icon: flatColorAreaChartIcon },
     { kind: "page", path: "/calls", label: t("调用详细"), icon: flatColorSalesPerformanceIcon },

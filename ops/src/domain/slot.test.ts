@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   clientLocale,
   parseSlotInput,
+  slotDismissedByClient,
   slotMatchesLocale,
+  slotSupportedByClient,
   slotVisibleNow,
   toPublicSlot,
 } from "./slot.ts";
@@ -35,8 +37,25 @@ describe("parseSlotInput", () => {
     expect(parsed).toMatchObject({ value: expect.objectContaining({ placement: "menu" }) });
   });
 
+  it("treats the button as optional but complete when present", () => {
+    const { button: _button, ...withoutButton } = validSlot.content;
+    expect(parseSlotInput({ ...validSlot, content: withoutButton })).toHaveProperty("value");
+    expect(
+      parseSlotInput({
+        ...validSlot,
+        content: { ...validSlot.content, button: { label: "", action: validSlot.content.button.action } },
+      }),
+    ).toHaveProperty("errors");
+    expect(
+      parseSlotInput({
+        ...validSlot,
+        content: { ...validSlot.content, button: { label: "打开", action: { type: "open_browser", url: "" } } },
+      }),
+    ).toHaveProperty("errors");
+  });
+
   it("rejects missing required fields and javascript urls", () => {
-    expect(parseSlotInput({ ...validSlot, content: { ...validSlot.content, button: undefined } })).toHaveProperty(
+    expect(parseSlotInput({ ...validSlot, content: { ...validSlot.content, title: undefined } })).toHaveProperty(
       "errors",
     );
     expect(
@@ -61,6 +80,7 @@ describe("parseSlotInput", () => {
 describe("slot visibility", () => {
   const stored = {
     ...validSlot,
+    dismissible: true,
     startsAt: null,
     endsAt: null,
     id: "59304605-01b6-4787-897f-8c7184bb54fc",
@@ -85,10 +105,32 @@ describe("slot visibility", () => {
     ).toBe(false);
   });
 
+  it("hides buttonless slots from clients that require a button", () => {
+    const { button: _button, ...withoutButton } = stored.content;
+    const buttonless = { ...stored, content: withoutButton };
+    expect(slotSupportedByClient(buttonless, "1.0.0")).toBe(false);
+    expect(slotSupportedByClient(buttonless, "0.1.7")).toBe(false);
+    expect(slotSupportedByClient(buttonless, "1.0.1")).toBe(true);
+    expect(slotSupportedByClient(stored, "0.1.7")).toBe(true);
+  });
+
+  it("honors past dismissals only for dismissible slots", () => {
+    const dismissed = new Set([stored.id]);
+    expect(slotDismissedByClient(stored, dismissed)).toBe(true);
+    expect(slotDismissedByClient({ ...stored, dismissible: false }, dismissed)).toBe(false);
+    expect(slotDismissedByClient(stored, new Set())).toBe(false);
+  });
+
+  it("defaults new slots to dismissible", () => {
+    expect(parseSlotInput(validSlot)).toMatchObject({ value: { dismissible: true } });
+    expect(parseSlotInput({ ...validSlot, dismissible: false })).toMatchObject({ value: { dismissible: false } });
+  });
+
   it("emits the public contract shape", () => {
     expect(toPublicSlot(stored)).toEqual({
       id: stored.id,
       enabled: true,
+      dismissible: true,
       placement: "menu",
       target: stored.target,
       content: stored.content,

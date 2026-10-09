@@ -148,8 +148,7 @@
   bottom: 16px;
   width: 320px;
   max-width: calc(100vw - 32px);
-  height: min(360px, calc(100vh - 32px));
-  max-height: 360px;
+  max-height: min(560px, calc(100vh - 32px));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -170,24 +169,18 @@
 }
 
 .hero {
-  flex: 0 0 112px;
+  flex: 0 0 auto;
   position: relative;
-  height: 112px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
+  min-height: 52px;
   overflow: hidden;
+  background: color-mix(in srgb, var(--vscode-foreground) 6%, transparent);
 
   img {
-    position: absolute;
-    inset: 0;
+    display: block;
     width: 100%;
-    height: 100%;
-  }
-
-  img {
-    object-fit: cover;
+    height: auto;
+    max-height: min(240px, 40vh);
+    object-fit: contain;
   }
 }
 
@@ -227,7 +220,7 @@
 
 .body {
   --scroll-shadow-bottom-size: 16px;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-height: 0;
 
   h2,

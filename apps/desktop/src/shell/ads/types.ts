@@ -10,6 +10,7 @@ export type AdAction = {
 export type AdSlot = {
   id: string;
   enabled: boolean;
+  dismissible?: boolean;
   placement: "menu";
   target: {
     title: string;
@@ -24,12 +25,16 @@ export type AdSlot = {
       label: string;
       value: string;
     }>;
-    button: {
+    button?: {
       label: string;
       action: AdAction;
     };
   };
 };
+
+export function adDismissible(ad: AdSlot): boolean {
+  return ad.dismissible !== false;
+}
 
 export type AdRuntime = {
   slots: AdSlot[];

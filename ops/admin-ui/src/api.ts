@@ -27,9 +27,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return payload as T;
 }
 
+export type SlotButton = { label: string; action: { type: "open_browser"; url: string } };
+
 export type SlotRecord = {
   id: string;
   enabled: boolean;
+  dismissible: boolean;
   placement: "menu";
   locale: "all" | "zh-CN" | "en-US";
   sortOrder: number;
@@ -41,7 +44,7 @@ export type SlotRecord = {
     description: string;
     imageUrl: string;
     details: { label: string; value: string }[];
-    button: { label: string; action: { type: "open_browser"; url: string } };
+    button?: SlotButton;
   };
   createdAt: string;
   updatedAt: string;
@@ -78,6 +81,12 @@ export const api = {
   deleteSlot: (id: string) => request<{ ok: boolean }>(`/api/admin/slots/${id}`, { method: "DELETE" }),
   reorderSlots: (ids: string[]) =>
     request<{ ok: boolean }>("/api/admin/slots/order", { method: "PUT", body: JSON.stringify({ ids }) }),
+  uploadImage: (file: File) =>
+    request<{ path: string }>("/api/admin/images", {
+      method: "POST",
+      body: file,
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+    }),
   releases: () => request<{ releases: ReleaseRecord[] }>("/api/admin/releases"),
   createRelease: (body: unknown) =>
     request<{ version: string }>("/api/admin/releases", { method: "POST", body: JSON.stringify(body) }),

@@ -37,6 +37,7 @@ const PLATFORMS = [
   "windows-x86_64-nsis",
   "windows-x86_64-msi",
   "darwin-aarch64-app",
+  "darwin-x86_64-app",
   "linux-x86_64-appimage",
   "linux-x86_64-deb",
   "linux-x86_64-rpm",

@@ -4,6 +4,7 @@ import type { Db } from "./database.ts";
 type SlotRow = {
   id: string;
   enabled: number;
+  dismissible: number;
   placement: string;
   locale: string;
   sort_order: number;
@@ -19,6 +20,7 @@ function rowToSlot(row: SlotRow): StoredSlot {
   return {
     id: row.id,
     enabled: row.enabled === 1,
+    dismissible: row.dismissible === 1,
     placement: "menu",
     locale: row.locale as StoredSlot["locale"],
     sortOrder: row.sort_order,
@@ -46,10 +48,11 @@ export async function getSlot(db: Db, id: string): Promise<StoredSlot | null> {
 export async function insertSlot(db: Db, id: string, value: SlotInput, now: string): Promise<void> {
   await db.run(
     `INSERT INTO slots (
-      id, enabled, placement, locale, sort_order, starts_at, ends_at, target, content, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, enabled, dismissible, placement, locale, sort_order, starts_at, ends_at, target, content, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     value.enabled ? 1 : 0,
+    value.dismissible ? 1 : 0,
     value.placement,
     value.locale,
     value.sortOrder,
@@ -65,10 +68,11 @@ export async function insertSlot(db: Db, id: string, value: SlotInput, now: stri
 export async function updateSlot(db: Db, id: string, value: SlotInput, now: string): Promise<boolean> {
   const result = await db.run(
     `UPDATE slots SET
-      enabled = ?, placement = ?, locale = ?, sort_order = ?, starts_at = ?, ends_at = ?,
+      enabled = ?, dismissible = ?, placement = ?, locale = ?, sort_order = ?, starts_at = ?, ends_at = ?,
       target = ?, content = ?, updated_at = ?
      WHERE id = ?`,
     value.enabled ? 1 : 0,
+    value.dismissible ? 1 : 0,
     value.placement,
     value.locale,
     value.sortOrder,

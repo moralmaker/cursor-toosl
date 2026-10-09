@@ -46,9 +46,15 @@ export async function writeDockIconVisibility(visible: boolean): Promise<void> {
   }
 }
 
+export type UpdateInstallProgress = {
+  phase: "download" | "install";
+  downloadedBytes: number;
+  totalBytes: number | null;
+};
+
 export type AppUpdate = {
   version: string;
-  install(): Promise<void>;
+  install(onProgress?: (progress: UpdateInstallProgress) => void): Promise<void>;
   close(): Promise<void>;
 };
 
@@ -62,7 +68,10 @@ export async function checkForUpdate(): Promise<AppUpdate | null> {
     if (!update) return null;
     return {
       version: update.version,
-      install: () => invoke("install_portable_update", { expectedVersion: update.version }),
+      install: async (onProgress) => {
+        onProgress?.({ phase: "download", downloadedBytes: 0, totalBytes: null });
+        await invoke("install_portable_update", { expectedVersion: update.version });
+      },
       close: async () => {},
     };
   }
@@ -71,14 +80,34 @@ export async function checkForUpdate(): Promise<AppUpdate | null> {
   if (!update) return null;
   return {
     version: update.version,
-    install: async () => {
-      await update.downloadAndInstall();
+    install: async (onProgress) => {
+      let downloadedBytes = 0;
+      let totalBytes: number | null = null;
+      await update.downloadAndInstall((event) => {
+        switch (event.event) {
+          case "Started":
+            downloadedBytes = 0;
+            totalBytes = event.data.contentLength ?? null;
+            onProgress?.({ phase: "download", downloadedBytes, totalBytes });
+            break;
+          case "Progress":
+            downloadedBytes += event.data.chunkLength;
+            onProgress?.({ phase: "download", downloadedBytes, totalBytes });
+            break;
+          case "Finished":
+            onProgress?.({ phase: "install", downloadedBytes, totalBytes });
+            break;
+        }
+      });
       await relaunch();
     },
     close: () => update.close(),
   };
 }
 
-export async function installUpdate(update: AppUpdate): Promise<void> {
-  await update.install();
+export async function installUpdate(
+  update: AppUpdate,
+  onProgress?: (progress: UpdateInstallProgress) => void,
+): Promise<void> {
+  await update.install(onProgress);
 }

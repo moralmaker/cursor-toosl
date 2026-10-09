@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "../../shared/ui/Icon";
 import { windowCloseIcon } from "../../shared/ui/icons";
 import { VirtualList } from "../../shared/virtual/VirtualList";
-import type { AdAction, AdSlot } from "./types";
+import { adDismissible, type AdAction, type AdSlot } from "./types";
 import styles from "./Ads.module.scss";
 
 type AdTextSection =
@@ -19,6 +19,8 @@ type FloatingAdProps = {
 
 export function FloatingAd({ ad, trigger, onClose, onAction }: FloatingAdProps) {
   const dialog = useRef<HTMLDivElement>(null);
+  const button = ad.content.button;
+  const [bodyHeight, setBodyHeight] = useState<number>();
   const textSections = useMemo<AdTextSection[]>(() => [
     { key: "intro", kind: "intro" },
     ...ad.content.details.map((detail, index) => ({
@@ -60,7 +62,7 @@ export function FloatingAd({ ad, trigger, onClose, onAction }: FloatingAdProps) 
   >
     <div className={styles.hero}>
       <img src={ad.content.imageUrl} alt="" />
-      <span className={styles.promotionLabel}>{t("推广")}</span>
+      {adDismissible(ad) && <span className={styles.promotionLabel}>{t("推广")}</span>}
       <button type="button" className={styles.close} aria-label={t("关闭广告")} onClick={() => { onClose(); trigger?.focus(); }}>
         <Icon icon={windowCloseIcon} size="1.1em" />
       </button>
@@ -72,6 +74,8 @@ export function FloatingAd({ ad, trigger, onClose, onAction }: FloatingAdProps) 
       itemGap={12}
       className={`${styles.body} scroll-shadow-bottom`}
       contentClassName={styles.bodyContent}
+      style={{ height: bodyHeight }}
+      onContentHeightChange={setBodyHeight}
     >
       {(section) => section.kind === "intro"
         ? <div className={styles.intro}>
@@ -83,8 +87,8 @@ export function FloatingAd({ ad, trigger, onClose, onAction }: FloatingAdProps) 
           <p>{section.value}</p>
         </div>}
     </VirtualList>
-    <div className={styles.footer}>
-      <button type="button" onClick={() => { onClose(); onAction(ad.content.button.action); }}>{ad.content.button.label}</button>
-    </div>
+    {button && <div className={styles.footer}>
+      <button type="button" onClick={() => { onClose(); onAction(button.action); }}>{button.label}</button>
+    </div>}
   </div>, document.body);
 }
