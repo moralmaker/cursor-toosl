@@ -76,9 +76,10 @@ export function ReleasesPage({ onError }: ReleasesPageProps) {
             <div className="badge">{release.published ? "已发布" : "草稿"}</div>
             <div>
               <h3 className="mono">{release.version}</h3>
-              <p>{release.notes}</p>
+              <p>{release.changelogTitle || release.notes || "（无说明）"}</p>
               <p className="mono">
                 {release.pubDate} · {release.assets.length} 个资产
+                {release.changelogVisible ? " · 日志已展示" : ""}
               </p>
             </div>
             <div className="row-actions">

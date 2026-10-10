@@ -9,6 +9,7 @@ export function applySecurityHeaders(response: Response, path: string, secure: b
   }
 
   const isAdminSurface = path === "/admin" || path.startsWith("/admin/") || path.startsWith("/api/admin");
+  const isDownloadSurface = path === "/download" || path.startsWith("/download/");
   if (isAdminSurface) {
     headers.set("X-Robots-Tag", "noindex, nofollow");
     headers.set(
@@ -22,6 +23,21 @@ export function applySecurityHeaders(response: Response, path: string, secure: b
         "connect-src 'self'",
         "frame-ancestors 'none'",
         "base-uri 'none'",
+        "form-action 'self'",
+      ].join("; "),
+    );
+  } else if (isDownloadSurface) {
+    headers.set(
+      "Content-Security-Policy",
+      [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline'",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' https://fonts.gstatic.com data:",
+        "img-src 'self' data:",
+        "connect-src 'self'",
+        "frame-ancestors 'none'",
+        "base-uri 'self'",
         "form-action 'self'",
       ].join("; "),
     );

@@ -5,7 +5,7 @@ cursor-tools is a local implementation of Cursor's backend.
 <br>
 <br>
 
-[User Guide](https://docs.susuan.ai/cursor-tools/zh) · [Download](https://github.com/moralmaker/cursor-tools-releases/releases/latest) · [Report an Issue](https://github.com/moralmaker/cursor-toosl/issues) · [中文版本说明](./README-CN.md)
+[User Guide](https://ops.susuan.ai/download/guide.html) · [Download](https://ops.susuan.ai/download/) · [Report an Issue](https://github.com/moralmaker/cursor-toosl/issues) · [中文版本说明](./README-CN.md)
 
 [![Release](https://img.shields.io/github/v/release/moralmaker/cursor-tools-releases?style=flat-square)](https://github.com/moralmaker/cursor-tools-releases/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/moralmaker/cursor-tools-releases/total?style=flat-square)](https://github.com/moralmaker/cursor-tools-releases/releases)
@@ -41,13 +41,13 @@ You can connect OpenAI- and Anthropic-compatible services, customize endpoints, 
 
 ## Quick Start
 
-1. Download the latest build for your platform from [GitHub Releases](https://github.com/moralmaker/cursor-tools-releases/releases/latest).
+1. Open the [download page](https://ops.susuan.ai/download/) and get the build for your device (or use [GitHub Releases](https://github.com/moralmaker/cursor-tools-releases/releases/latest)).
 2. Launch cursor-tools, open **Cursor Settings**, and initialize the local CA when prompted.
 3. Open **Model Settings**, add a model with its endpoint, API key, and model ID, then run **Test**.
 4. Once the test passes, keep cursor-tools running.
 5. After upgrading Cursor or configuring a model for the first time, quit Cursor completely and restart it, then start a new conversation and select the configured model.
 
-For complete installation steps, system configuration, and Frequently Asked Questions, see the [User Guide](https://docs.susuan.ai).
+For complete installation steps, system configuration, and Frequently Asked Questions, see the [user guide](https://ops.susuan.ai/download/guide.html).
 
 ## Model Management
 
@@ -121,7 +121,7 @@ See the [release roadmap](https://github.com/moralmaker/cursor-toosl/discussions
 
 ## Community and Support
 
-- [User Guide](https://docs.susuan.ai)
+- [User Guide](https://ops.susuan.ai/download/guide.html)
 - [GitHub Issues](https://github.com/moralmaker/cursor-toosl/issues)
 - [Telegram community](https://t.me/cursor_tools)
 - QQ groups: `1095916242`, `1094411438`, `1095918002`, `1094419321`

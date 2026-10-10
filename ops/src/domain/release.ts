@@ -25,6 +25,9 @@ export const releaseInputSchema = z.object({
     .optional()
     .transform((value) => (value && !Number.isNaN(Date.parse(value)) ? new Date(value).toISOString() : undefined)),
   published: z.boolean().default(false),
+  changelogTitle: z.string().max(200).default(""),
+  changelogBody: z.string().max(65_536).default(""),
+  changelogVisible: z.boolean().default(false),
   assets: z.array(releaseAssetSchema).max(40).default([]),
 });
 
@@ -40,6 +43,9 @@ export type StoredRelease = {
   notes: string;
   pubDate: string;
   published: boolean;
+  changelogTitle: string;
+  changelogBody: string;
+  changelogVisible: boolean;
   createdAt: string;
   updatedAt: string;
   assets: StoredReleaseAsset[];

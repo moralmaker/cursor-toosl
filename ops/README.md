@@ -15,7 +15,23 @@ ops/
 └── admin-ui/                  # React 管理台（构建后由 Worker 托管）
 ```
 
-存储：D1 存广告位 / 版本 / 会话 / 审计；R2 桶 `cursor-tools-ops-images` 存管理台上传的广告图；R2 桶 `cursor-tools-ops-releases` 存桌面更新包（`GET /api/v1/updates/assets/:name`），避免客户端直连 GitHub 过慢。
+存储：D1 存广告位 / 版本 / 会话 / 审计 / 下载日聚合；R2 桶 `cursor-tools-ops-images` 存管理台上传的广告图；R2 桶 `cursor-tools-ops-releases` 存桌面更新包（`GET /api/v1/updates/assets/:name`），避免客户端直连 GitHub 过慢。
+
+公开下载页：`https://ops.susuan.ai/download/`（按设备推荐安装包，源码在 `download/index.html`）。使用帮助：`https://ops.susuan.ai/download/guide.html`。更新日志：`https://ops.susuan.ai/download/changelog/`（详情 `/download/changelog/{version}/`）。站点根路径 `/` 会跳转到下载页；运营台仍在 `/admin/`。
+
+### 更新日志
+
+- 字段：`changelog_title` / `changelog_body`（Markdown）/ `changelog_visible`，与 updater 短 `notes` 分离。
+- 公开：`GET /api/v1/changelog`、`GET /api/v1/changelog/:version`（仅 `published` 且可见且正文非空）。
+- 管理台「版本发布」编辑器可改标题/正文/是否展示；从 GitHub 导入资产时保留已有日志。
+
+### 下载统计
+
+- 观测点：`GET /api/v1/updates/assets/*` 返回 **200** 时先写入 D1 再传文件，排除 `.sig` 与清单 JSON。
+- **不计**：`304`、直连 GitHub 的下载、`latest.json` 检查更新。
+- 响应头使用 `Cache-Control: private` + `CDN-Cache-Control: no-store`，避免 CDN 共享缓存导致 Worker（及计数）被跳过。
+- 管理台：侧栏「下载统计」→ `GET /api/admin/download-stats?from=&to=`（UTC 日，默认近 30 天）。
+- 表：`download_stats_daily`（按日 × 版本 × 平台 × 文件名聚合）。
 
 ## 接口契约
 

@@ -336,7 +336,7 @@ export function CursorSettingsPage() {
         void appStore.setCursorEnabled(false);
       }}
     >
-      <p>{t("关闭后将移除 Cursor 本地代理配置。如果你需要登陆官方账号，通常不需要关闭操作，推荐直接登陆你的账号即可(tools模型与官方账号的模型已支持无缝衔接)，是否继续关闭并清理代理？")}</p>
+      <p>{t("关闭后会清除 Cursor 的本地代理设置。如果你要登录官方账号，一般不用关闭，直接登录即可——工具里的模型和官方账号的模型已经可以无缝切换。确定要继续关闭并清理代理吗？")}</p>
     </ConfirmDialog>
     <Modal fullHeight open={draft !== null} title={editing ? t("编辑模型") : t("添加模型")} banner={draft && (editorTesting || editorTestState) ? <CursorModelTestResult state={editorTestState} testing={editorTesting} /> : undefined} busy={cursorBusy || savingAndTesting} onClose={() => { if (editing && editorTesting) void cancelModelTest(editing.model_hash); setDraft(null); setEditing(null); }} onSubmit={() => void save()} submitLabel={t("保存")} secondaryAction={<button type="button" className={controls.secondary} disabled={cursorBusy || savingAndTesting} onClick={() => void (editorTesting && editing ? cancelModelTest(editing.model_hash) : saveAndTest())}>{savingAndTesting ? t("处理中…") : editorTesting ? t("取消测试") : t("保存并测试")}</button>}>
       {draft && <>

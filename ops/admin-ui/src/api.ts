@@ -63,9 +63,31 @@ export type ReleaseRecord = {
   notes: string;
   pubDate: string;
   published: boolean;
+  changelogTitle: string;
+  changelogBody: string;
+  changelogVisible: boolean;
   createdAt: string;
   updatedAt: string;
   assets: ReleaseAsset[];
+};
+
+export type DownloadStatsResponse = {
+  from: string;
+  to: string;
+  totals: { downloads: number; days: number };
+  today: number;
+  last7Days: number;
+  last30Days: number;
+  byDay: Array<{ day: string; count: number }>;
+  byVersion: Array<{ version: string; count: number }>;
+  byPlatform: Array<{ platform: string; count: number }>;
+  byAsset: Array<{
+    assetName: string;
+    version: string;
+    platform: string;
+    channel: "installer" | "portable" | "other";
+    count: number;
+  }>;
 };
 
 export const api = {
@@ -119,4 +141,11 @@ export const api = {
     request<{
       items: Array<{ id: number; action: string; actor: string; detail: string | null; ip: string | null; created_at: string }>;
     }>("/api/admin/audit?limit=100"),
+  downloadStats: (from?: string, to?: string) => {
+    const params = new URLSearchParams();
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    const query = params.toString();
+    return request<DownloadStatsResponse>(`/api/admin/download-stats${query ? `?${query}` : ""}`);
+  },
 };

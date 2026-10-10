@@ -6,6 +6,9 @@ type ReleaseRow = {
   notes: string;
   pub_date: string;
   published: number;
+  changelog_title: string | null;
+  changelog_body: string | null;
+  changelog_visible: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -25,6 +28,9 @@ function toRelease(row: ReleaseRow, assets: StoredReleaseAsset[]): StoredRelease
     notes: row.notes,
     pubDate: row.pub_date,
     published: row.published === 1,
+    changelogTitle: row.changelog_title ?? "",
+    changelogBody: row.changelog_body ?? "",
+    changelogVisible: row.changelog_visible === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     assets,
@@ -79,14 +85,30 @@ export async function upsertRelease(db: Db, value: ReleaseInput, now: string): P
   const createdAt = existing?.created_at ?? now;
   await db.batch([
     {
-      sql: `INSERT INTO releases (version, notes, pub_date, published, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+      sql: `INSERT INTO releases (
+              version, notes, pub_date, published,
+              changelog_title, changelog_body, changelog_visible,
+              created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(version) DO UPDATE SET
               notes = excluded.notes,
               pub_date = excluded.pub_date,
               published = excluded.published,
+              changelog_title = excluded.changelog_title,
+              changelog_body = excluded.changelog_body,
+              changelog_visible = excluded.changelog_visible,
               updated_at = excluded.updated_at`,
-      params: [value.version, value.notes, pubDate, value.published ? 1 : 0, createdAt, now],
+      params: [
+        value.version,
+        value.notes,
+        pubDate,
+        value.published ? 1 : 0,
+        value.changelogTitle,
+        value.changelogBody,
+        value.changelogVisible ? 1 : 0,
+        createdAt,
+        now,
+      ],
     },
     {
       sql: "DELETE FROM release_assets WHERE version = ?",

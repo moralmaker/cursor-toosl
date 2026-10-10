@@ -6,6 +6,9 @@ export type ReleaseDraft = {
   notes: string;
   pubDate: string;
   published: boolean;
+  changelogTitle: string;
+  changelogBody: string;
+  changelogVisible: boolean;
   assets: ReleaseAsset[];
 };
 
@@ -15,6 +18,9 @@ export function emptyRelease(): ReleaseDraft {
     notes: "",
     pubDate: new Date().toISOString(),
     published: false,
+    changelogTitle: "",
+    changelogBody: "",
+    changelogVisible: false,
     assets: [],
   };
 }
@@ -25,6 +31,9 @@ export function fromRelease(release: ReleaseRecord): ReleaseDraft {
     notes: release.notes,
     pubDate: release.pubDate,
     published: release.published,
+    changelogTitle: release.changelogTitle ?? "",
+    changelogBody: release.changelogBody ?? "",
+    changelogVisible: Boolean(release.changelogVisible),
     assets: release.assets,
   };
 }
@@ -103,9 +112,36 @@ export function ReleaseEditor({
             />
             已发布（客户端可见）
           </label>
-          <Field label="更新说明">
-            <TextArea value={draft.notes} onChange={(event) => onChange({ ...draft, notes: event.target.value })} />
+          <Field label="更新器摘要（短）">
+            <TextArea
+              value={draft.notes}
+              onChange={(event) => onChange({ ...draft, notes: event.target.value })}
+              placeholder="显示在 Tauri 自动更新弹窗中的简短说明"
+            />
           </Field>
+          <Field label="更新日志标题">
+            <TextInput
+              value={draft.changelogTitle}
+              onChange={(event) => onChange({ ...draft, changelogTitle: event.target.value })}
+              placeholder="例如：下载加速与统计"
+            />
+          </Field>
+          <Field label="更新日志正文（Markdown）">
+            <TextArea
+              value={draft.changelogBody}
+              onChange={(event) => onChange({ ...draft, changelogBody: event.target.value })}
+              placeholder={"## 新功能\n\n- …\n\n## 修复\n\n- …"}
+              style={{ minHeight: 220 }}
+            />
+          </Field>
+          <label className="checks" style={{ flexDirection: "row" }}>
+            <input
+              type="checkbox"
+              checked={draft.changelogVisible}
+              onChange={(event) => onChange({ ...draft, changelogVisible: event.target.checked })}
+            />
+            在公开更新日志展示
+          </label>
           <div className="toolbar">
             <strong>平台资产</strong>
             <button

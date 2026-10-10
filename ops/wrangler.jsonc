@@ -5,7 +5,7 @@
   "workers_dev": true,
   "preview_urls": false,
   "assets": {
-    "directory": "./admin-ui/dist",
+    "directory": "./site",
     "binding": "ASSETS",
     "html_handling": "none",
     "not_found_handling": "none",

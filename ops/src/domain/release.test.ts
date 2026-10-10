@@ -17,6 +17,9 @@ describe("release manifests", () => {
     notes: "Cursor TOOLS v0.1.7",
     pubDate: "2026-01-01T00:00:00.000Z",
     published: true,
+    changelogTitle: "",
+    changelogBody: "",
+    changelogVisible: false,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     assets: [

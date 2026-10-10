@@ -6,7 +6,7 @@ import { sha256Hex } from "../security/crypto.ts";
 
 export const SESSION_COOKIE = "ops_session";
 export const SESSION_TTL_SECONDS = 12 * 60 * 60;
-export const ADMIN_BODY_MAX = 100 * 1024;
+export const ADMIN_BODY_MAX = 120 * 1024;
 
 export function readSessionToken(cookieHeader: string | undefined): string | null {
   if (!cookieHeader) {

@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "npm run build:ui && wrangler dev",
     "dev:ui": "vite --config admin-ui/vite.config.ts",
-    "build:ui": "vite build --config admin-ui/vite.config.ts",
+    "build:ui": "vite build --config admin-ui/vite.config.ts && node scripts/assemble-site.mjs",
     "deploy": "npm run build:ui && wrangler deploy",
     "hash-password": "node scripts/hash-password.mjs",
     "test": "vitest run",

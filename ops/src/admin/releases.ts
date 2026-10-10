@@ -100,8 +100,17 @@ releaseRoutes.post("/import-github", async (c) => {
     return json(c, { error: merged.errors.join("; ") }, 400);
   }
 
-  await upsertRelease(dbFrom(c), merged.value, new Date().toISOString());
-  await writeAudit(dbFrom(c), {
+  const db = dbFrom(c);
+  const existing = await getRelease(db, merged.value.version);
+  const toSave: ReleaseInput = {
+    ...merged.value,
+    // 导入资产时保留已编辑的更新日志，避免被空默认值覆盖。
+    changelogTitle: existing?.changelogTitle ?? "",
+    changelogBody: existing?.changelogBody ?? "",
+    changelogVisible: existing?.changelogVisible ?? false,
+  };
+  await upsertRelease(db, toSave, new Date().toISOString());
+  await writeAudit(db, {
     action: "release.import",
     actor: "admin",
     detail: `${input.value.repository}@${merged.value.version}`,

@@ -4,7 +4,7 @@
 
 cursor-tools 是一个运行在本机的 Cursor 模型网关，帮助你在 Cursor 中使用自己配置的模型服务。
 
-[English README](./README.md) · [使用指南](https://docs.susuan.ai) · [下载](https://github.com/moralmaker/cursor-tools-releases/releases/latest) · [提交问题](https://github.com/moralmaker/cursor-toosl/issues)
+[English README](./README.md) · [使用帮助](https://ops.susuan.ai/download/guide.html) · [下载](https://ops.susuan.ai/download/) · [提交问题](https://github.com/moralmaker/cursor-toosl/issues)
 
 [![Release](https://img.shields.io/github/v/release/moralmaker/cursor-tools-releases?style=flat-square)](https://github.com/moralmaker/cursor-tools-releases/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/moralmaker/cursor-tools-releases/total?style=flat-square)](https://github.com/moralmaker/cursor-tools-releases/releases)
@@ -39,13 +39,13 @@ cursor-tools 是一个开源的本地模型网关。它在你的设备上运行�
 
 ## 快速开始
 
-1. 从 [GitHub Releases](https://github.com/moralmaker/cursor-tools-releases/releases/latest) 下载适合你操作系统的最新版本。
+1. 打开 [下载页](https://ops.susuan.ai/download/)，按设备提示下载最新版本（也可在 [GitHub Releases](https://github.com/moralmaker/cursor-tools-releases/releases/latest) 获取）。
 2. 启动 cursor-tools，打开 **Cursor 配置**，按提示初始化本地 CA（证书颁发机构）。
 3. 在模型设置中添加模型，填写服务地址、API Key 和模型名称，然后保存并运行 **测试**。
 4. 确认测试通过后，保持 cursor-tools 运行。
 5. **首次升级 Cursor 或首次配置模型后，完全退出并重新启动 Cursor，然后新开一个对话**。在模型列表中选择已配置的模型，开始使用 Agent。
 
-完整的安装步骤、配置说明和常见问题，请参阅[中文使用指南](https://docs.susuan.ai/cursor-tools/zh)。
+完整的安装步骤、配置说明和常见问题，请参阅[使用帮助](https://ops.susuan.ai/download/guide.html)。
 
 > [!TIP]
 > 首次升级 Cursor 或首次完成配置后，必须完全退出并重新启动 Cursor，再新开一个对话。配置前已经打开的对话不会加载新连接；使用自定义模型时，请在模型列表中手动选择该模型，不要选择 **Auto**。
@@ -259,7 +259,7 @@ node node_modules/@tauri-apps/cli/tauri.js build --bundles nsis --target x86_64-
 
 ## 社区与反馈
 
-- [中文使用指南](https://docs.susuan.ai/zh/docs)
+- [使用帮助](https://ops.susuan.ai/download/guide.html)
 - [GitHub Issues](https://github.com/moralmaker/cursor-toosl/issues)
 
 提交问题时，请附上操作系统、cursor-tools 版本、模型类型、请求协议、已脱敏的服务地址、错误信息和复现步骤。请勿公开 API Key 或其他凭据。

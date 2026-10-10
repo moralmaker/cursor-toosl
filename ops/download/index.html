@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cursor TOOLS · 下载</title>
+  <meta name="description" content="下载 Cursor TOOLS：在 Cursor 中使用自备模型服务。支持 macOS、Windows、Linux。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #10131a;
+      --ink-elevated: #171c26;
+      --paper: #f3efe6;
+      --paper-muted: #c9c2b4;
+      --brass: #d4a24c;
+      --brass-deep: #b8842f;
+      --line: color-mix(in srgb, var(--paper) 12%, transparent);
+      --ok: #7dcea0;
+      --danger: #e07a5f;
+      --shadow: 0 28px 80px rgba(0, 0, 0, 0.45);
+      --radius: 18px;
+      --font-display: "Instrument Serif", "Noto Serif SC", Georgia, serif;
+      --font-body: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: var(--font-body);
+      color: var(--paper);
+      background:
+        radial-gradient(1200px 600px at 12% -10%, rgba(212, 162, 76, 0.18), transparent 55%),
+        radial-gradient(900px 500px at 90% 0%, rgba(125, 206, 160, 0.08), transparent 50%),
+        linear-gradient(165deg, #0d1016 0%, var(--ink) 42%, #0a0c11 100%);
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.35;
+      background-image:
+        linear-gradient(var(--line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--line) 1px, transparent 1px);
+      background-size: 72px 72px;
+      mask-image: radial-gradient(ellipse at center, black 20%, transparent 75%);
+    }
+
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; cursor: pointer; border: 0; background: none; color: inherit; }
+
+    .nav-bar {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      backdrop-filter: blur(18px);
+      background: color-mix(in srgb, var(--ink) 82%, transparent);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .shell {
+      position: relative;
+      width: min(1080px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 28px 0 80px;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 68px;
+      opacity: 0;
+      animation: rise 0.7s ease forwards;
+    }
+
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      letter-spacing: 0.02em;
+    }
+
+    .brand-mark {
+      font-family: var(--font-display);
+      font-size: 1.45rem;
+      font-weight: 400;
+    }
+
+    .brand-mark em {
+      font-style: italic;
+      color: var(--brass);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 18px;
+      color: var(--paper-muted);
+      font-size: 0.92rem;
+    }
+
+    .nav-links a:hover { color: var(--paper); }
+
+    .hero {
+      display: grid;
+      gap: 28px;
+      margin-bottom: 56px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: fit-content;
+      padding: 6px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--paper-muted);
+      font-size: 0.82rem;
+      letter-spacing: 0.04em;
+      opacity: 0;
+      animation: rise 0.7s ease 0.08s forwards;
+    }
+
+    .eyebrow-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--ok);
+      box-shadow: 0 0 0 4px rgba(125, 206, 160, 0.15);
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 15ch;
+      font-family: var(--font-display);
+      font-size: clamp(3.2rem, 8vw, 5.6rem);
+      font-weight: 400;
+      line-height: 0.95;
+      letter-spacing: -0.03em;
+      opacity: 0;
+      animation: rise 0.8s ease 0.14s forwards;
+    }
+
+    .hero-line {
+      display: block;
+    }
+
+    .hero-line .char {
+      display: inline-block;
+      opacity: 0;
+      transform: translateY(0.35em) scale(0.96);
+      filter: blur(4px);
+      animation: charIn 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    }
+
+    .hero-brand {
+      display: block;
+      margin-top: 0.08em;
+      font-style: italic;
+      letter-spacing: -0.02em;
+      background: linear-gradient(
+        105deg,
+        #8fd3ff 0%,
+        #e8c27a 28%,
+        #ffffff 48%,
+        #d4a24c 62%,
+        #7dcea0 82%,
+        #8fd3ff 100%
+      );
+      background-size: 220% 100%;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      -webkit-text-fill-color: transparent;
+      animation: brandShine 4.5s linear infinite;
+      text-shadow: none;
+      filter: drop-shadow(0 0 18px rgba(212, 162, 76, 0.28));
+    }
+
+    .hero-brand .cursor-word {
+      font-style: italic;
+    }
+
+    .hero-brand .tools-word {
+      font-family: var(--font-body);
+      font-style: normal;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      margin-left: 0.18em;
+    }
+
+    .ai-pulse {
+      display: inline-block;
+      width: 0.55em;
+      height: 0.55em;
+      margin-left: 0.18em;
+      border-radius: 50%;
+      vertical-align: 0.12em;
+      background: radial-gradient(circle at 35% 35%, #fff7e0, var(--brass) 45%, transparent 70%);
+      box-shadow:
+        0 0 0 0 rgba(212, 162, 76, 0.45),
+        0 0 18px rgba(143, 211, 255, 0.35);
+      animation: aiPulse 2.2s ease-out infinite;
+    }
+
+    @keyframes charIn {
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        filter: blur(0);
+      }
+    }
+
+    @keyframes brandShine {
+      0% { background-position: 0% 50%; }
+      100% { background-position: 220% 50%; }
+    }
+
+    @keyframes aiPulse {
+      0% { transform: scale(0.85); box-shadow: 0 0 0 0 rgba(212, 162, 76, 0.5), 0 0 14px rgba(143, 211, 255, 0.35); }
+      70% { transform: scale(1); box-shadow: 0 0 0 12px rgba(212, 162, 76, 0), 0 0 22px rgba(143, 211, 255, 0.15); }
+      100% { transform: scale(0.85); box-shadow: 0 0 0 0 rgba(212, 162, 76, 0), 0 0 14px rgba(143, 211, 255, 0.2); }
+    }
+
+    .lede {
+      margin: 0;
+      max-width: 36rem;
+      color: var(--paper-muted);
+      font-size: 1.08rem;
+      line-height: 1.7;
+      opacity: 0;
+      animation: rise 0.8s ease 0.22s forwards;
+    }
+
+    .recommend {
+      position: relative;
+      display: grid;
+      gap: 20px;
+      padding: 28px;
+      border: 1px solid color-mix(in srgb, var(--brass) 35%, var(--line));
+      border-radius: var(--radius);
+      background:
+        linear-gradient(145deg, color-mix(in srgb, var(--brass) 12%, var(--ink-elevated)), var(--ink-elevated));
+      box-shadow: var(--shadow);
+      opacity: 0;
+      animation: rise 0.85s ease 0.3s forwards;
+    }
+
+    .recommend::after {
+      content: "";
+      position: absolute;
+      inset: auto -20% -40% auto;
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(212, 162, 76, 0.22), transparent 70%);
+      pointer-events: none;
+    }
+
+    .recommend-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 16px;
+      align-items: center;
+      color: var(--paper-muted);
+      font-size: 0.92rem;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--paper) 8%, transparent);
+      color: var(--paper);
+    }
+
+    .recommend h2 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: clamp(1.8rem, 4vw, 2.4rem);
+      font-weight: 400;
+      line-height: 1.15;
+    }
+
+    .recommend p {
+      margin: 0;
+      max-width: 40rem;
+      color: var(--paper-muted);
+      line-height: 1.65;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      position: relative;
+      z-index: 1;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-height: 48px;
+      padding: 0 22px;
+      border-radius: 999px;
+      font-weight: 600;
+      transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+
+    .btn:hover { transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn:disabled {
+      opacity: 0.55;
+      cursor: wait;
+      transform: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(180deg, #e0b25d, var(--brass-deep));
+      color: #1a1205;
+      box-shadow: 0 10px 30px rgba(184, 132, 47, 0.35);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(180deg, #ecc273, #c99438);
+    }
+
+    .btn-ghost {
+      border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--paper) 4%, transparent);
+      color: var(--paper);
+    }
+
+    .btn-ghost:hover {
+      border-color: color-mix(in srgb, var(--paper) 28%, transparent);
+      background: color-mix(in srgb, var(--paper) 8%, transparent);
+    }
+
+    .btn svg {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 auto;
+    }
+
+    .status {
+      min-height: 1.4em;
+      color: var(--paper-muted);
+      font-size: 0.88rem;
+    }
+
+    .status[data-tone="error"] { color: var(--danger); }
+
+    .platforms {
+      display: grid;
+      gap: 14px;
+      opacity: 0;
+      animation: rise 0.8s ease 0.42s forwards;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 16px;
+      margin: 8px 0 4px;
+    }
+
+    .section-title h3 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: 1.7rem;
+      font-weight: 400;
+    }
+
+    .section-title p {
+      margin: 0;
+      color: var(--paper-muted);
+      font-size: 0.92rem;
+    }
+
+    .platform-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .platform {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      align-items: center;
+      padding: 18px 20px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: color-mix(in srgb, var(--ink-elevated) 88%, transparent);
+      transition: border-color 0.2s ease, background 0.2s ease;
+    }
+
+    .platform[data-active="true"] {
+      border-color: color-mix(in srgb, var(--brass) 45%, var(--line));
+      background: color-mix(in srgb, var(--brass) 8%, var(--ink-elevated));
+    }
+
+    .platform:hover {
+      border-color: color-mix(in srgb, var(--paper) 22%, transparent);
+    }
+
+    .platform-copy h4 {
+      margin: 0 0 4px;
+      font-size: 1.02rem;
+      font-weight: 600;
+    }
+
+    .platform-copy p {
+      margin: 0;
+      color: var(--paper-muted);
+      font-size: 0.88rem;
+      line-height: 1.5;
+    }
+
+    .platform-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .link-btn {
+      display: inline-flex;
+      align-items: center;
+      min-height: 36px;
+      padding: 0 14px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      font-size: 0.86rem;
+      color: var(--paper);
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+
+    .link-btn:hover {
+      background: color-mix(in srgb, var(--paper) 8%, transparent);
+      border-color: color-mix(in srgb, var(--paper) 24%, transparent);
+    }
+
+    .link-btn[aria-disabled="true"] {
+      opacity: 0.4;
+      pointer-events: none;
+    }
+
+    .footnote {
+      margin-top: 42px;
+      color: var(--paper-muted);
+      font-size: 0.86rem;
+      line-height: 1.7;
+      opacity: 0;
+      animation: rise 0.8s ease 0.5s forwards;
+    }
+
+    .footnote a {
+      color: var(--brass);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(14px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 720px) {
+      .shell { width: min(100% - 28px, 1080px); padding-top: 20px; }
+      .nav { min-height: 60px; }
+      .nav-links { gap: 12px; font-size: 0.84rem; }
+      .recommend { padding: 22px; }
+      .platform {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+      .platform-links { justify-content: flex-start; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .nav, .eyebrow, h1, .lede, .recommend, .platforms, .footnote {
+        animation: none;
+        opacity: 1;
+      }
+      .hero-line .char {
+        animation: none;
+        opacity: 1;
+        transform: none;
+        filter: none;
+      }
+      .hero-brand, .ai-pulse { animation: none; }
+      .hero-brand {
+        background: none;
+        color: var(--brass);
+        -webkit-text-fill-color: var(--brass);
+        filter: none;
+      }
+      .btn:hover { transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="nav-bar">
+    <div class="shell" style="padding-top: 0; padding-bottom: 0;">
+      <div class="nav">
+        <a class="brand" href="/download/">
+          <span class="brand-mark">Cursor <em>TOOLS</em></span>
+        </a>
+        <nav class="nav-links" aria-label="相关链接">
+          <a href="/download/guide.html">使用帮助</a>
+          <a href="/download/changelog/">更新日志</a>
+        </nav>
+      </div>
+    </div>
+  </header>
+  <div class="shell">
+    <main class="hero">
+      <div class="eyebrow"><span class="eyebrow-dot" aria-hidden="true"></span>桌面端 · macOS / Windows / Linux</div>
+      <h1 id="hero-title" aria-label="在你工作的地方使用 Cursor TOOLS">
+        <span class="hero-line" data-text="在你工作的地方使用"></span>
+        <span class="hero-brand">
+          <span class="cursor-word">Cursor</span><span class="tools-word">TOOLS</span><span class="ai-pulse" aria-hidden="true"></span>
+        </span>
+      </h1>
+      <p class="lede">
+        本机运行的 Cursor 模型接管服务。配置自己的模型后，可与 Cursor 官方模型同时使用。
+        我们会根据你的设备推荐合适的安装包。
+      </p>
+
+      <section class="recommend" aria-labelledby="recommend-title">
+        <div class="recommend-meta">
+          <span class="chip" id="device-chip">识别设备中…</span>
+          <span id="version-chip">版本加载中…</span>
+        </div>
+        <h2 id="recommend-title">正在匹配适合你的安装包</h2>
+        <p id="recommend-desc">读取最新发布信息后，会给出一键下载。</p>
+        <div class="actions">
+          <a class="btn btn-primary" id="primary-download" href="#" aria-disabled="true">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 3v12m0 0 4.5-4.5M12 15 7.5 10.5M5 21h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span id="primary-label">准备下载</span>
+          </a>
+          <button class="btn btn-ghost" type="button" id="scroll-all">查看全部平台</button>
+        </div>
+        <div class="status" id="status" role="status"></div>
+      </section>
+    </main>
+
+    <section class="platforms" id="all-platforms" aria-labelledby="platforms-title">
+      <div class="section-title">
+        <h3 id="platforms-title">全部平台</h3>
+        <p>也可手动选择对应系统的安装包</p>
+      </div>
+      <div class="platform-list" id="platform-list"></div>
+      <p class="footnote">
+        安装包由本站加速分发。若自动更新不可用，也可从
+        <a href="https://github.com/moralmaker/cursor-tools-releases/releases/latest" target="_blank" rel="noreferrer">GitHub Releases</a>
+        获取同一版本。安装与接管步骤见
+        <a href="/download/guide.html">使用帮助</a>。
+      </p>
+    </section>
+  </div>
+
+  <script>
+    const LATEST_URL = "/api/v1/updates/latest.json";
+    const PORTABLE_URL = "/api/v1/updates/portable-latest.json";
+
+    const platformCopy = {
+      macosArm: {
+        title: "macOS（Apple 芯片）",
+        desc: "下载 .tar.gz 压缩包，解压后得到 Cursor Tools.app。适用于 M 系列芯片。",
+      },
+      macosIntel: {
+        title: "macOS（Intel）",
+        desc: "下载 .tar.gz 压缩包，解压后得到 Cursor Tools.app。适用于 Intel Mac。",
+      },
+      windows: {
+        title: "Windows",
+        desc: "推荐使用安装版；也可下载便携版 ZIP。",
+      },
+      linux: {
+        title: "Linux",
+        desc: "提供 AppImage、deb、rpm，按发行版选择。",
+      },
+    };
+
+    function detectDevice() {
+      const ua = navigator.userAgent || "";
+      const platform = navigator.platform || "";
+      const uaData = navigator.userAgentData;
+      const isWindows = /Windows/i.test(ua) || platform.startsWith("Win");
+      const isMac = /Mac/i.test(platform) || /Macintosh/i.test(ua);
+      const isLinux = (!isWindows && !isMac && (/Linux/i.test(ua) || /Linux/i.test(platform))) || /CrOS/i.test(ua);
+      let arch = "x64";
+      if (uaData?.architecture) {
+        arch = /arm/i.test(uaData.architecture) ? "arm64" : "x64";
+      } else if (/arm64|aarch64/i.test(ua) || (isMac && !/Intel/i.test(ua) && navigator.maxTouchPoints > 0)) {
+        // Heuristic: Apple Silicon Macs often omit "Intel" and may report arm in UA.
+        arch = "arm64";
+      } else if (isMac) {
+        // Prefer Apple Silicon recommendation on modern Macs; user can still pick Intel below.
+        const isLikelyAppleSilicon = !/Intel Mac OS X/i.test(ua);
+        arch = isLikelyAppleSilicon ? "arm64" : "x64";
+      }
+
+      if (isWindows) return { id: "windows", label: "Windows", arch: "x64", family: "windows" };
+      if (isMac) {
+        return {
+          id: arch === "arm64" ? "macosArm" : "macosIntel",
+          label: arch === "arm64" ? "macOS · Apple 芯片" : "macOS · Intel",
+          arch,
+          family: "macos",
+        };
+      }
+      if (isLinux) return { id: "linux", label: "Linux", arch: "x64", family: "linux" };
+      return { id: "windows", label: "未识别，默认 Windows", arch: "x64", family: "windows", uncertain: true };
+    }
+
+    async function detectMacArchFallback(device) {
+      if (device.family !== "macos" || typeof navigator.userAgentData?.getHighEntropyValues !== "function") {
+        return device;
+      }
+      try {
+        const values = await navigator.userAgentData.getHighEntropyValues(["architecture", "bitness"]);
+        const arch = /arm/i.test(values.architecture || "") ? "arm64" : "x64";
+        return {
+          ...device,
+          arch,
+          id: arch === "arm64" ? "macosArm" : "macosIntel",
+          label: arch === "arm64" ? "macOS · Apple 芯片" : "macOS · Intel",
+        };
+      } catch {
+        return device;
+      }
+    }
+
+    function pickUrl(platforms, keys) {
+      for (const key of keys) {
+        if (platforms[key]?.url) return platforms[key].url;
+      }
+      return null;
+    }
+
+    function buildCatalog(latest, portable) {
+      const p = latest.platforms || {};
+      const portableUrl = portable?.platforms?.["windows-x86_64"]?.url || null;
+      return {
+        version: latest.version,
+        macosArm: {
+          ...platformCopy.macosArm,
+          links: [
+            { label: "下载 MacOS 版本", url: pickUrl(p, ["darwin-aarch64-app", "darwin-aarch64"]) },
+          ],
+        },
+        macosIntel: {
+          ...platformCopy.macosIntel,
+          links: [
+            { label: "下载 MacOS 版本", url: pickUrl(p, ["darwin-x86_64-app", "darwin-x86_64"]) },
+          ],
+        },
+        windows: {
+          ...platformCopy.windows,
+          links: [
+            { label: "安装版", url: pickUrl(p, ["windows-x86_64-nsis", "windows-x86_64"]) },
+            { label: "便携版 ZIP", url: portableUrl },
+          ],
+        },
+        linux: {
+          ...platformCopy.linux,
+          links: [
+            { label: "AppImage", url: pickUrl(p, ["linux-x86_64-appimage", "linux-x86_64"]) },
+            { label: "deb", url: pickUrl(p, ["linux-x86_64-deb"]) },
+            { label: "rpm", url: pickUrl(p, ["linux-x86_64-rpm"]) },
+          ],
+        },
+      };
+    }
+
+    function primaryFor(device, catalog) {
+      const entry = catalog[device.id];
+      const first = entry?.links?.find((link) => link.url);
+      if (!first) return null;
+      return {
+        title: `为你的 ${device.label} 准备好了`,
+        desc: entry.desc,
+        label: first.label.startsWith("下载") ? first.label : `下载 ${first.label}`,
+        url: first.url,
+      };
+    }
+
+    function renderPlatforms(catalog, activeId) {
+      const root = document.getElementById("platform-list");
+      const order = ["macosArm", "macosIntel", "windows", "linux"];
+      root.innerHTML = order.map((id) => {
+        const item = catalog[id];
+        const links = item.links
+          .map((link) => {
+            if (!link.url) {
+              return `<span class="link-btn" aria-disabled="true">${link.label}</span>`;
+            }
+            return `<a class="link-btn" href="${link.url}">${link.label}</a>`;
+          })
+          .join("");
+        return `
+          <article class="platform" data-active="${id === activeId}" data-id="${id}">
+            <div class="platform-copy">
+              <h4>${item.title}${id === activeId ? " · 当前设备" : ""}</h4>
+              <p>${item.desc}</p>
+            </div>
+            <div class="platform-links">${links}</div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function setStatus(message, tone) {
+      const el = document.getElementById("status");
+      el.textContent = message || "";
+      el.dataset.tone = tone || "";
+    }
+
+    async function main() {
+      let device = detectDevice();
+      device = await detectMacArchFallback(device);
+      document.getElementById("device-chip").textContent = device.uncertain
+        ? `设备：${device.label}`
+        : `已识别：${device.label}`;
+
+      const primary = document.getElementById("primary-download");
+      const primaryLabel = document.getElementById("primary-label");
+      primary.setAttribute("aria-disabled", "true");
+
+      try {
+        const [latestRes, portableRes] = await Promise.all([
+          fetch(LATEST_URL, { cache: "no-cache" }),
+          fetch(PORTABLE_URL, { cache: "no-cache" }),
+        ]);
+        if (!latestRes.ok) throw new Error(`版本信息不可用（${latestRes.status}）`);
+        const latest = await latestRes.json();
+        const portable = portableRes.ok ? await portableRes.json() : null;
+        const catalog = buildCatalog(latest, portable);
+        document.getElementById("version-chip").textContent = `最新版本 v${catalog.version}`;
+
+        const rec = primaryFor(device, catalog);
+        document.getElementById("recommend-title").textContent = rec
+          ? rec.title
+          : "暂未找到对应当前设备的安装包";
+        document.getElementById("recommend-desc").textContent = rec
+          ? rec.desc
+          : "请从下方「全部平台」中手动选择。";
+
+        if (rec) {
+          primary.href = rec.url;
+          primaryLabel.textContent = rec.label;
+          primary.removeAttribute("aria-disabled");
+          setStatus(`文件来自官方加速节点 · v${catalog.version}`);
+        } else {
+          primary.removeAttribute("href");
+          primaryLabel.textContent = "暂无可用下载";
+          setStatus("当前设备没有匹配的安装包，请改用下方列表。", "error");
+        }
+
+        renderPlatforms(catalog, device.id);
+      } catch (error) {
+        document.getElementById("version-chip").textContent = "版本信息加载失败";
+        document.getElementById("recommend-title").textContent = "暂时无法获取下载地址";
+        document.getElementById("recommend-desc").textContent =
+          "请稍后重试，或前往 GitHub Releases 手动下载。";
+        primaryLabel.textContent = "打开 GitHub Releases";
+        primary.href = "https://github.com/moralmaker/cursor-tools-releases/releases/latest";
+        primary.removeAttribute("aria-disabled");
+        setStatus(error instanceof Error ? error.message : String(error), "error");
+        renderPlatforms(
+          buildCatalog({ version: "—", platforms: {} }, null),
+          device.id,
+        );
+      }
+    }
+
+    document.getElementById("scroll-all").addEventListener("click", () => {
+      document.getElementById("all-platforms").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+
+    function animateHeroLine() {
+      const line = document.querySelector(".hero-line[data-text]");
+      if (!line) return;
+      const text = line.getAttribute("data-text") || "";
+      line.textContent = "";
+      [...text].forEach((ch, index) => {
+        const span = document.createElement("span");
+        span.className = "char";
+        span.textContent = ch === " " ? "\u00A0" : ch;
+        span.style.animationDelay = `${0.18 + index * 0.045}s`;
+        line.appendChild(span);
+      });
+    }
+
+    animateHeroLine();
+    main();
+  </script>
+</body>
+</html>

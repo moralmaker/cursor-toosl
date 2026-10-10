@@ -3,11 +3,12 @@ import { ApiError, api } from "./api.ts";
 import { Toast } from "./components/Toast.tsx";
 import { AuditPage } from "./pages/AuditPage.tsx";
 import { DismissalsPage } from "./pages/DismissalsPage.tsx";
+import { DownloadStatsPage } from "./pages/DownloadStatsPage.tsx";
 import { LoginPage } from "./pages/LoginPage.tsx";
 import { ReleasesPage } from "./pages/ReleasesPage.tsx";
 import { SlotsPage } from "./pages/SlotsPage.tsx";
 
-type Page = "slots" | "releases" | "dismissals" | "audit";
+type Page = "slots" | "releases" | "download-stats" | "dismissals" | "audit";
 
 export function App() {
   const [ready, setReady] = useState(false);
@@ -72,6 +73,13 @@ export function App() {
           <button className={page === "releases" ? "active" : ""} type="button" onClick={() => setPage("releases")}>
             版本发布
           </button>
+          <button
+            className={page === "download-stats" ? "active" : ""}
+            type="button"
+            onClick={() => setPage("download-stats")}
+          >
+            下载统计
+          </button>
           <button className={page === "dismissals" ? "active" : ""} type="button" onClick={() => setPage("dismissals")}>
             关闭反馈
           </button>
@@ -98,6 +106,7 @@ export function App() {
       <main className="workspace">
         {page === "slots" ? <SlotsPage onError={showError} /> : null}
         {page === "releases" ? <ReleasesPage onError={showError} /> : null}
+        {page === "download-stats" ? <DownloadStatsPage onError={showError} /> : null}
         {page === "dismissals" ? <DismissalsPage onError={showError} /> : null}
         {page === "audit" ? <AuditPage onError={showError} /> : null}
       </main>
