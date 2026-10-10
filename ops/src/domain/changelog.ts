@@ -66,7 +66,7 @@ export function summarize(text: string, max = 160): string {
   return `${flat.slice(0, max - 1).trimEnd()}…`;
 }
 
-/** 安全 Markdown 子集：标题、段落、列表、引用、表格、链接、行内 code。无 HTML。 */
+/** 安全 Markdown 子集：标题、段落、列表、引用、表格、链接、图片、行内 code。不解析原始 HTML。 */
 export function renderMarkdown(source: string): string {
   const lines = source.replace(/\r\n/g, "\n").split("\n");
   const html: string[] = [];
@@ -204,6 +204,11 @@ function escapeHtml(value: string): string {
 function inline(value: string): string {
   let text = escapeHtml(value);
   text = text.replace(/`([^`]+)`/g, "<code>$1</code>");
+  // 先匹配图片，避免 ![说明](url) 被当成普通链接。
+  text = text.replace(
+    /!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/g,
+    '<img src="$2" alt="$1" loading="lazy">',
+  );
   text = text.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" rel="noreferrer noopener" target="_blank">$1</a>');
   text = text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   text = text.replace(/(^|[\s(])\*([^*]+)\*(?=[\s).,]|$)/g, "$1<em>$2</em>");

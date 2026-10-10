@@ -116,7 +116,7 @@ npx wrangler login
 npx wrangler d1 create cursor-tools-ops
 npx wrangler r2 bucket create cursor-tools-ops-images
 npx wrangler r2 bucket create cursor-tools-ops-releases
-# 上传更新包示例（把 latest.json 里对应平台的 url 改成下方公开地址）：
+# 上传更新包。管理台从 GitHub 导入时会把 url 改写成下方公开地址，对象必须先在这个桶里：
 # npx wrangler r2 object put cursor-tools-ops-releases/<asset> --file=<local> --content-type=application/octet-stream --remote
 # 公开地址：https://ops.susuan.ai/api/v1/updates/assets/<asset>
 ```

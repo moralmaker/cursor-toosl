@@ -1,4 +1,4 @@
-<div align="center">
+
 
 # cursor-tools
 
@@ -6,16 +6,23 @@ cursor-tools 是一个运行在本机的 Cursor 模型网关，帮助你在 Curs
 
 [English README](./README.md) · [使用帮助](https://ops.susuan.ai/download/guide.html) · [下载](https://ops.susuan.ai/download/) · [提交问题](https://github.com/moralmaker/cursor-toosl/issues)
 
-[![Release](https://img.shields.io/github/v/release/moralmaker/cursor-tools-releases?style=flat-square)](https://github.com/moralmaker/cursor-tools-releases/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/moralmaker/cursor-tools-releases/total?style=flat-square)](https://github.com/moralmaker/cursor-tools-releases/releases)
-[![License](https://img.shields.io/github/license/moralmaker/cursor-toosl?style=flat-square)](./LICENSE)
-[![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey?style=flat-square)](https://github.com/moralmaker/cursor-tools-releases/releases/latest)
+![Release](https://img.shields.io/github/v/release/moralmaker/cursor-tools-releases?style=flat-square)
+![Downloads](https://img.shields.io/github/downloads/moralmaker/cursor-tools-releases/total?style=flat-square)
+![License](https://img.shields.io/github/license/moralmaker/cursor-toosl?style=flat-square)
+![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey?style=flat-square)
 
-</div>
+
 
 ![将 cursor-tools 连接到多种模型 API](./images/en-brand-1.png)
 
 ![cursor-tools 控制面板](./images/en-home-1.png)
+
+![cursor-tools 控制面板](./images/en-home-3.png)
+
+![将 cursor-tools 连接到多种模型 API](./images/en-brand-2.png)
+
+![cursor-tools 控制面板](./images/en-home-2.png)
+
 
 ## 项目简介
 
@@ -25,6 +32,8 @@ cursor-tools 是一个开源的本地模型网关。它在你的设备上运行�
 
 > [!IMPORTANT]
 > cursor-tools 免费且开源，但你连接的模型服务商可能会按用量收费。本项目是独立项目，与 Cursor 或其开发者没有关联，也未获得其认可。
+
+
 
 ## 主要功能
 
@@ -36,6 +45,8 @@ cursor-tools 是一个开源的本地模型网关。它在你的设备上运行�
 - **会话指标**：查看 Token 用量、缓存命中率、对话轮次和估算价值。
 - **TAB 补全服务**：在公益服务、官方直连和自定义服务之间选择连接方式。
 - **跨平台运行**：支持 macOS、Windows 和 Linux。
+
+
 
 ## 快速开始
 
@@ -50,6 +61,8 @@ cursor-tools 是一个开源的本地模型网关。它在你的设备上运行�
 > [!TIP]
 > 首次升级 Cursor 或首次完成配置后，必须完全退出并重新启动 Cursor，再新开一个对话。配置前已经打开的对话不会加载新连接；使用自定义模型时，请在模型列表中手动选择该模型，不要选择 **Auto**。
 
+
+
 ## 模型配置
 
 每个模型配置都是独立的上游通道，可以单独设置服务商、协议、凭据和生成参数。
@@ -58,11 +71,13 @@ cursor-tools 是一个开源的本地模型网关。它在你的设备上运行�
 
 ### 类型与协议选择
 
-| 模型系列 | 模型类型 | 请求协议 |
-| --- | --- | --- |
-| Claude 系列 | **Anthropic** | Messages API |
-| GPT / OpenAI 系列 | **OpenAI** | **Responses API** |
-| 其他模型 | **OpenAI** | **Chat Completions API** |
+
+| 模型系列            | 模型类型          | 请求协议                     |
+| --------------- | ------------- | ------------------------ |
+| Claude 系列       | **Anthropic** | Messages API             |
+| GPT / OpenAI 系列 | **OpenAI**    | **Responses API**        |
+| 其他模型            | **OpenAI**    | **Chat Completions API** |
+
 
 GPT 系列建议使用 **Responses API**。如果使用 Chat Completions，可能无法保留提示词缓存，导致速度变慢和费用增加。
 
@@ -98,6 +113,8 @@ Cursor 的 Tab 补全由独立的 TAB 服务处理，不经过模型通道。你
 - 账号拥有官方额度时，官方模型和本地模型可以随时切换混用。
 - **Auto 只使用官方模型**，不会自动使用你配置的本地模型。账号没有官方额度时，请手动选择自己配置的模型。
 - 插件、代码库索引等 Cursor 功能可以继续使用。
+
+
 
 ## 数据流转
 
@@ -160,7 +177,11 @@ cursor-tools/
 └── Makefile           # 常用开发、检查和构建命令
 ```
 
+
+
 ## 本地开发
+
+
 
 ### 环境要求
 
@@ -169,15 +190,19 @@ cursor-tools/
 - Tauri 2 的系统构建依赖
 - Docker(仅在构建 Docker 镜像时需要)
 
+
+
 ### 安装依赖
 
 ```bash
 npm --prefix apps/desktop ci        # 按 package-lock.json 精确安装
 ```
 
+
+
 ### 启动本地服务(构建产物)
 
-先构建前端与服务端(见下方「构建」),再启动本地网关服务,浏览器打开 <http://127.0.0.1:3000> 即为控制台(健康检查:`/__tools-api__/healthz`):
+先构建前端与服务端(见下方「构建」),再启动本地网关服务,浏览器打开 [http://127.0.0.1:3000](http://127.0.0.1:3000) 即为控制台(健康检查:`/__tools-api__/healthz`):
 
 ```bash
 CURSOR_CONSOLE_DIR=apps/desktop/dist cargo run --release --package cursor-server --bin cursor-server
@@ -192,6 +217,8 @@ make dev-web         # 等价 npm --prefix apps/desktop run dev:web:cargo server
 make dev-desktop     # 等价 npm --prefix apps/desktop run tauri:dev,桌面壳开发
 make dev-tab-server  # 本地 TAB 代理(:8041),未提供 config.toml 时回退到 crates/tab-server/config.example.toml
 ```
+
+
 
 ### 检查(与 CI 对齐)
 

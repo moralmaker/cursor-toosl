@@ -130,7 +130,7 @@ export function ReleaseEditor({
             <TextArea
               value={draft.changelogBody}
               onChange={(event) => onChange({ ...draft, changelogBody: event.target.value })}
-              placeholder={"## 新功能\n\n- …\n\n## 修复\n\n- …"}
+              placeholder={"## 新功能\n\n- …\n\n![截图](https://ops.susuan.ai/api/v1/images/…)\n\n## 修复\n\n- …"}
               style={{ minHeight: 220 }}
             />
           </Field>

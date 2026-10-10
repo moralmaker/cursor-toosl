@@ -123,6 +123,26 @@ export const githubRepoSchema = z.object({
 
 export type GithubImportInput = z.infer<typeof githubRepoSchema>;
 
+const ASSET_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,199}$/;
+
+/** GitHub Release 下载地址换成本站 R2 加速地址；已经是本站或无法识别文件名时保持原样。 */
+export function opsAssetUrl(origin: string, sourceUrl: string): string {
+  let name = "";
+  try {
+    const url = new URL(sourceUrl);
+    const host = url.hostname.toLowerCase();
+    if (host === "github.com" || host.endsWith(".githubusercontent.com")) {
+      name = decodeURIComponent(url.pathname.split("/").pop() ?? "");
+    }
+  } catch {
+    return sourceUrl;
+  }
+  if (!ASSET_NAME_RE.test(name)) {
+    return sourceUrl;
+  }
+  return `${origin.replace(/\/$/, "")}/api/v1/updates/assets/${encodeURIComponent(name)}`;
+}
+
 export function parseGithubImport(input: unknown): { value: GithubImportInput } | { errors: string[] } {
   const result = githubRepoSchema.safeParse(input);
   if (!result.success) {

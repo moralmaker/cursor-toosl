@@ -3,6 +3,7 @@ import { deleteRelease, getRelease, listReleases, upsertRelease } from "../db/re
 import { writeAudit } from "../db/audit.ts";
 import {
   manifestFromGithubJson,
+  opsAssetUrl,
   parseGithubImport,
   parseReleaseInput,
   type ReleaseInput,
@@ -103,7 +104,7 @@ releaseRoutes.post("/import-github", async (c) => {
   const db = dbFrom(c);
   const existing = await getRelease(db, merged.value.version);
   const toSave: ReleaseInput = {
-    ...merged.value,
+    ...pointAssetsAtOps(new URL(c.req.url).origin, merged.value),
     // 导入资产时保留已编辑的更新日志，避免被空默认值覆盖。
     changelogTitle: existing?.changelogTitle ?? "",
     changelogBody: existing?.changelogBody ?? "",
@@ -166,5 +167,12 @@ function mergeImports(
       assets: [...(primary?.assets ?? []), ...(secondary?.assets ?? [])],
       published: true,
     },
+  };
+}
+
+export function pointAssetsAtOps(origin: string, input: ReleaseInput): ReleaseInput {
+  return {
+    ...input,
+    assets: input.assets.map((asset) => ({ ...asset, url: opsAssetUrl(origin, asset.url) })),
   };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildTauriManifest, manifestFromGithubJson, parseReleaseInput, pickLatestPublished } from "./release.ts";
+import { buildTauriManifest, manifestFromGithubJson, opsAssetUrl, parseReleaseInput, pickLatestPublished } from "./release.ts";
 import { compareSemver, isSemver } from "./semver.ts";
 
 describe("semver", () => {
@@ -64,6 +64,18 @@ describe("release manifests", () => {
     const older = { ...release, version: "0.1.6", assets: [] };
     expect(pickLatestPublished([older, release])?.version).toBe("0.1.7");
     expect(pickLatestPublished([{ ...release, published: false }])).toBeNull();
+  });
+
+  it("rewrites GitHub asset URLs onto the ops accelerator", () => {
+    expect(
+      opsAssetUrl(
+        "https://ops.susuan.ai",
+        "https://github.com/moralmaker/cursor-tools-releases/releases/download/v1.1.0/Cursor.Tools_1.1.0_amd64.deb",
+      ),
+    ).toBe("https://ops.susuan.ai/api/v1/updates/assets/Cursor.Tools_1.1.0_amd64.deb");
+    expect(opsAssetUrl("https://ops.susuan.ai", "https://ops.susuan.ai/api/v1/updates/assets/already.deb")).toBe(
+      "https://ops.susuan.ai/api/v1/updates/assets/already.deb",
+    );
   });
 
   it("imports GitHub latest.json", () => {

@@ -121,7 +121,7 @@ npm run dev                      # http://127.0.0.1:8787/admin/ 、/download/
 
 1. GitHub Actions 把安装包发到公开仓库 `cursor-tools-releases`。
 2. 登录运营台 → Releases，从 GitHub 导入该版本（或 `POST /api/admin/releases/import-github`）。
-3. 管理台把清单里的下载 URL 指到 `https://ops.susuan.ai/api/v1/updates/assets/...`（R2）。
+3. 导入会把资产 URL 改写为 `https://ops.susuan.ai/api/v1/updates/assets/<文件名>`。文件本身要用 `wrangler r2 object put` 放进 `cursor-tools-ops-releases`，否则加速地址是 404。
 4. 已安装客户端优先拉 ops 的 `latest.json`；ops 未导入时仍可回退 GitHub。
 
 只发 GitHub、不导入 ops 时：走 GitHub 回退的客户端仍能更新；走 ops 优先端点的客户端要等导入完成。
