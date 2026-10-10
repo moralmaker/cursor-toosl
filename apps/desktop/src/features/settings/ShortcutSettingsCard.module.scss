@@ -1,0 +1,49 @@
+@use "../../styles/typography" as type;
+
+.combo {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 4px 0 10px;
+  border: 1px solid var(--vscode-input-border, var(--vscode-sideBar-border));
+  border-radius: 8px;
+  background: var(--vscode-editor-background);
+
+  &[data-recording] { border-color: var(--vscode-textLink-foreground); }
+  &[data-conflict] { border-color: var(--vscode-errorForeground); }
+}
+
+.keys {
+  min-height: 26px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--vscode-foreground);
+  font: inherit;
+  font-size: type.$font-size-xs;
+  letter-spacing: 0.02em;
+}
+
+.clear {
+  width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--vscode-descriptionForeground) 18%, transparent);
+  color: var(--vscode-descriptionForeground);
+  font-size: type.$font-size-xs;
+  line-height: 16px;
+
+  &:hover {
+    color: var(--vscode-foreground);
+    background: color-mix(in srgb, var(--vscode-descriptionForeground) 32%, transparent);
+  }
+}
+
+.restore {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 0 10px;
+}

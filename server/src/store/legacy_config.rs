@@ -191,6 +191,7 @@ fn model_input(model: LegacyModel) -> Result<ModelConfigInput> {
         anthropic_max_tokens: positive(model.anthropic_max_tokens),
         anthropic_thinking_effort: optional_string(model.anthropic_thinking_effort),
         thinking_budget_tokens: positive(model.thinking_budget_tokens),
+        custom_price: None,
     })
 }
 

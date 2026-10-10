@@ -4,7 +4,10 @@ use std::{collections::HashSet, str::FromStr};
 use sqlx::{Row, Sqlite, Transaction};
 
 use crate::{
-    model::{model_hash, normalize_model_input, ModelConfig, ModelConfigInput, ModelType},
+    model::{
+        model_hash, normalize_model_input, resolved_price, ModelConfig, ModelConfigInput,
+        ModelTokenPrice, ModelType, PriceSource,
+    },
     Error, Result,
 };
 
@@ -16,7 +19,9 @@ const MODEL_COLUMNS: &str = r#"
     openai_extra_params_json, custom_headers_enabled, custom_headers_json,
     anthropic_extra_params_enabled, anthropic_extra_params_json, context_window_tokens,
     max_completion_tokens, anthropic_max_tokens, anthropic_thinking_effort,
-    thinking_budget_tokens, created_at_ms, updated_at_ms
+    thinking_budget_tokens, custom_input_cost_per_million, custom_output_cost_per_million,
+    custom_cache_read_cost_per_million, custom_cache_write_cost_per_million,
+    created_at_ms, updated_at_ms
 "#;
 
 impl Store {
@@ -129,7 +134,10 @@ impl Store {
                 custom_headers_enabled = ?, custom_headers_json = ?,
                 anthropic_extra_params_enabled = ?, anthropic_extra_params_json = ?,
                 context_window_tokens = ?, max_completion_tokens = ?, anthropic_max_tokens = ?,
-                anthropic_thinking_effort = ?, thinking_budget_tokens = ?, updated_at_ms = ?
+                anthropic_thinking_effort = ?, thinking_budget_tokens = ?,
+                custom_input_cost_per_million = ?, custom_output_cost_per_million = ?,
+                custom_cache_read_cost_per_million = ?, custom_cache_write_cost_per_million = ?,
+                updated_at_ms = ?
             WHERE model_hash = ?"#,
         )
         .bind(&next_hash)
@@ -155,6 +163,10 @@ impl Store {
         .bind(input.anthropic_max_tokens.map(to_i64).transpose()?)
         .bind(&input.anthropic_thinking_effort)
         .bind(input.thinking_budget_tokens.map(to_i64).transpose()?)
+        .bind(input.custom_price.map(|price| price.input_cost_per_million))
+        .bind(input.custom_price.map(|price| price.output_cost_per_million))
+        .bind(input.custom_price.map(|price| price.cache_read_cost_per_million))
+        .bind(input.custom_price.map(|price| price.cache_write_cost_per_million))
         .bind(now)
         .bind(current_hash)
         .execute(&mut *transaction)
@@ -248,8 +260,10 @@ async fn insert_model_with_conflict(
             openai_extra_params_json, custom_headers_enabled, custom_headers_json,
             anthropic_extra_params_enabled, anthropic_extra_params_json, context_window_tokens,
             max_completion_tokens, anthropic_max_tokens, anthropic_thinking_effort,
-            thinking_budget_tokens, created_at_ms, updated_at_ms
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
+            thinking_budget_tokens, custom_input_cost_per_million, custom_output_cost_per_million,
+            custom_cache_read_cost_per_million, custom_cache_write_cost_per_million,
+            created_at_ms, updated_at_ms
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
     );
     if ignore_existing {
         statement.push_str(" ON CONFLICT(model_hash) DO NOTHING");
@@ -278,6 +292,22 @@ async fn insert_model_with_conflict(
         .bind(input.anthropic_max_tokens.map(to_i64).transpose()?)
         .bind(&input.anthropic_thinking_effort)
         .bind(input.thinking_budget_tokens.map(to_i64).transpose()?)
+        .bind(input.custom_price.map(|price| price.input_cost_per_million))
+        .bind(
+            input
+                .custom_price
+                .map(|price| price.output_cost_per_million),
+        )
+        .bind(
+            input
+                .custom_price
+                .map(|price| price.cache_read_cost_per_million),
+        )
+        .bind(
+            input
+                .custom_price
+                .map(|price| price.cache_write_cost_per_million),
+        )
         .bind(now)
         .bind(now)
         .execute(&mut **transaction)
@@ -318,9 +348,43 @@ fn model_from_row(row: sqlx::sqlite::SqliteRow) -> Result<ModelConfig> {
         anthropic_max_tokens: optional_u64(&row, "anthropic_max_tokens")?,
         anthropic_thinking_effort: row.try_get("anthropic_thinking_effort")?,
         thinking_budget_tokens: optional_u64(&row, "thinking_budget_tokens")?,
+        custom_price: custom_price_from_row(&row)?,
+        price_source: PriceSource::Unpriced,
+        price: None,
         created_at_ms: row.try_get("created_at_ms")?,
         updated_at_ms: row.try_get("updated_at_ms")?,
     })
+    .map(|mut model| {
+        let (price_source, price) = resolved_price(&model.model_id, model.custom_price);
+        model.price_source = price_source;
+        model.price = price;
+        model
+    })
+}
+
+fn custom_price_from_row(row: &sqlx::sqlite::SqliteRow) -> Result<Option<ModelTokenPrice>> {
+    let input = row.try_get::<Option<f64>, _>("custom_input_cost_per_million")?;
+    let output = row.try_get::<Option<f64>, _>("custom_output_cost_per_million")?;
+    let cache_read = row.try_get::<Option<f64>, _>("custom_cache_read_cost_per_million")?;
+    let cache_write = row.try_get::<Option<f64>, _>("custom_cache_write_cost_per_million")?;
+    match (input, output, cache_read, cache_write) {
+        (
+            Some(input_cost_per_million),
+            Some(output_cost_per_million),
+            Some(cache_read_cost_per_million),
+            Some(cache_write_cost_per_million),
+        ) => Ok(Some(
+            ModelTokenPrice {
+                input_cost_per_million,
+                output_cost_per_million,
+                cache_read_cost_per_million,
+                cache_write_cost_per_million,
+            }
+            .validated()?,
+        )),
+        (None, None, None, None) => Ok(None),
+        _ => Err(Error::Config("custom model price is incomplete".into())),
+    }
 }
 
 fn optional_u64(row: &sqlx::sqlite::SqliteRow, column: &str) -> Result<Option<u64>> {
@@ -363,6 +427,7 @@ mod tests {
             anthropic_max_tokens: None,
             anthropic_thinking_effort: None,
             thinking_budget_tokens: None,
+            custom_price: None,
         }
     }
 
@@ -397,5 +462,32 @@ mod tests {
             .unwrap();
         assert_eq!(cleared.model_hash, created.model_hash);
         assert_eq!(cleared.group_name, None);
+        assert_eq!(created.price_source, PriceSource::Unpriced);
+
+        let mut priced = model_input(None);
+        priced.model_id = "claude-opus-4-7".into();
+        let official = store.create_model(&priced).await.unwrap();
+        assert_eq!(official.price_source, PriceSource::Official);
+        assert_eq!(official.price.unwrap().input_cost_per_million, 5.0);
+
+        priced.custom_price = Some(ModelTokenPrice {
+            input_cost_per_million: 1.5,
+            output_cost_per_million: 2.5,
+            cache_read_cost_per_million: 0.1,
+            cache_write_cost_per_million: 0.2,
+        });
+        let custom = store
+            .update_model(&official.model_hash, &priced)
+            .await
+            .unwrap();
+        assert_eq!(custom.price_source, PriceSource::Custom);
+        assert_eq!(custom.price.unwrap().input_cost_per_million, 1.5);
+
+        priced.custom_price = None;
+        let restored = store
+            .update_model(&custom.model_hash, &priced)
+            .await
+            .unwrap();
+        assert_eq!(restored.price_source, PriceSource::Official);
     }
 }

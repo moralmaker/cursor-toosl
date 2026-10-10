@@ -1,13 +1,15 @@
 //! Provides aggregate data for the control API.
 //! Efficient database aggregates for the desktop overview.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use chrono::Utc;
 use sqlx::Row;
 
 use crate::{
-    model::{Overview, OverviewMetrics, TokenUsageBucket, TokenUsageGranularity},
+    model::{
+        price_usage, Overview, OverviewMetrics, TokenPrice, TokenUsageBucket, TokenUsageGranularity,
+    },
     Result,
 };
 
@@ -73,6 +75,33 @@ impl Store {
         let cache_write_tokens = non_negative(token_row.try_get("cache_write_tokens")?);
         let output_tokens = non_negative(token_row.try_get("output_tokens")?);
         let prompt_tokens = saturating_sum(&[input_tokens, cache_read_tokens, cache_write_tokens]);
+        let custom_prices = load_custom_prices(self).await?;
+        let priced = price_groups(
+            &sqlx::query(&format!(
+                "SELECT
+                    model_hash,
+                    model_id,
+                    COALESCE(SUM({fresh_input}), 0) AS input_tokens,
+                    COALESCE(SUM(COALESCE(cache_read_tokens, 0)), 0) AS cache_read_tokens,
+                    COALESCE(SUM(COALESCE(cache_write_tokens, 0)), 0) AS cache_write_tokens,
+                    COALESCE(SUM(COALESCE(output_tokens, 0)), 0) AS output_tokens
+                 FROM llm_calls
+                 WHERE (? IS NULL OR created_at_ms >= ?)
+                   AND (? IS NULL OR created_at_ms < ?)
+                   AND (? IS NULL OR model_hash IN (SELECT value FROM json_each(?)))
+                 GROUP BY model_hash, model_id",
+                fresh_input = fresh_input_sql(),
+            ))
+            .bind(start_ms)
+            .bind(start_ms)
+            .bind(end_ms)
+            .bind(end_ms)
+            .bind(model_hashes)
+            .bind(model_hashes)
+            .fetch_all(&self.pool)
+            .await?,
+            &custom_prices,
+        )?;
         let metrics = OverviewMetrics {
             llm_calls: call_row.try_get("llm_calls")?,
             successful_calls: call_row.try_get("successful_calls")?,
@@ -83,6 +112,8 @@ impl Store {
             cache_read_tokens,
             cache_write_tokens,
             output_tokens,
+            estimated_cost_usd: priced.cost_usd,
+            unpriced_tokens: priced.unpriced_tokens,
         };
 
         let (token_usage_granularity, bucket_ms, series_start_ms, bucket_count) =
@@ -90,6 +121,9 @@ impl Store {
         let rows = sqlx::query(&format!(
             "SELECT
                 (created_at_ms / {bucket_ms}) * {bucket_ms} AS bucket_start_ms,
+                model_hash,
+                model_id,
+                COUNT(*) AS llm_calls,
                 COALESCE(SUM({fresh_input}), 0) AS input_tokens,
                 COALESCE(SUM(COALESCE(cache_read_tokens, 0)), 0) AS cache_read_tokens,
                 COALESCE(SUM(COALESCE(cache_write_tokens, 0)), 0) AS cache_write_tokens,
@@ -98,7 +132,7 @@ impl Store {
              WHERE created_at_ms >= ?
                AND (? IS NULL OR created_at_ms < ?)
                AND (? IS NULL OR model_hash IN (SELECT value FROM json_each(?)))
-             GROUP BY bucket_start_ms
+             GROUP BY bucket_start_ms, model_hash, model_id
              ORDER BY bucket_start_ms",
             fresh_input = fresh_input_sql(),
         ))
@@ -109,22 +143,48 @@ impl Store {
         .bind(model_hashes)
         .fetch_all(&self.pool)
         .await?;
-        let mut recorded = rows
-            .into_iter()
-            .map(|row| {
-                let bucket_start_ms: i64 = row.try_get("bucket_start_ms")?;
-                Ok((
-                    bucket_start_ms,
-                    TokenUsageBucket {
-                        bucket_start_ms,
-                        input_tokens: non_negative(row.try_get("input_tokens")?),
-                        cache_read_tokens: non_negative(row.try_get("cache_read_tokens")?),
-                        cache_write_tokens: non_negative(row.try_get("cache_write_tokens")?),
-                        output_tokens: non_negative(row.try_get("output_tokens")?),
-                    },
-                ))
-            })
-            .collect::<Result<BTreeMap<_, _>>>()?;
+        let mut recorded = BTreeMap::<i64, TokenUsageBucket>::new();
+        for row in rows {
+            let bucket_start_ms: i64 = row.try_get("bucket_start_ms")?;
+            let input_tokens = non_negative(row.try_get("input_tokens")?);
+            let cache_read_tokens = non_negative(row.try_get("cache_read_tokens")?);
+            let cache_write_tokens = non_negative(row.try_get("cache_write_tokens")?);
+            let output_tokens = non_negative(row.try_get("output_tokens")?);
+            let model_hash: Option<String> = row.try_get("model_hash")?;
+            let model_id: String = row.try_get("model_id")?;
+            let priced = price_usage(
+                &model_id,
+                model_hash
+                    .as_ref()
+                    .and_then(|hash| custom_prices.get(hash).copied()),
+                input_tokens,
+                output_tokens,
+                cache_read_tokens,
+                cache_write_tokens,
+            );
+            let slice = TokenUsageBucket {
+                bucket_start_ms,
+                input_tokens,
+                cache_read_tokens,
+                cache_write_tokens,
+                output_tokens,
+                llm_calls: non_negative(row.try_get("llm_calls")?),
+                estimated_cost_usd: priced.cost_usd,
+                unpriced_tokens: priced.unpriced_tokens,
+            };
+            recorded
+                .entry(bucket_start_ms)
+                .and_modify(|bucket| {
+                    bucket.input_tokens += slice.input_tokens;
+                    bucket.cache_read_tokens += slice.cache_read_tokens;
+                    bucket.cache_write_tokens += slice.cache_write_tokens;
+                    bucket.output_tokens += slice.output_tokens;
+                    bucket.llm_calls += slice.llm_calls;
+                    bucket.estimated_cost_usd += slice.estimated_cost_usd;
+                    bucket.unpriced_tokens += slice.unpriced_tokens;
+                })
+                .or_insert(slice);
+        }
         let token_usage_series = (0..bucket_count)
             .map(|offset| series_start_ms.saturating_add(offset.saturating_mul(bucket_ms)))
             .map(|bucket_start_ms| {
@@ -199,6 +259,62 @@ fn token_usage_buckets(
         series_start_ms,
         i64::try_from(OVERVIEW_DAYS).unwrap_or(0),
     )
+}
+
+async fn load_custom_prices(store: &Store) -> Result<HashMap<String, TokenPrice>> {
+    let rows = sqlx::query(
+        "SELECT model_hash, custom_input_cost_per_million, custom_output_cost_per_million,
+                custom_cache_read_cost_per_million, custom_cache_write_cost_per_million
+         FROM model_configs
+         WHERE custom_input_cost_per_million IS NOT NULL
+           AND custom_output_cost_per_million IS NOT NULL
+           AND custom_cache_read_cost_per_million IS NOT NULL
+           AND custom_cache_write_cost_per_million IS NOT NULL",
+    )
+    .fetch_all(&store.pool)
+    .await?;
+    let mut prices = HashMap::with_capacity(rows.len());
+    for row in rows {
+        let hash: String = row.try_get("model_hash")?;
+        prices.insert(
+            hash,
+            TokenPrice {
+                input_cost_per_million: row.try_get("custom_input_cost_per_million")?,
+                output_cost_per_million: row.try_get("custom_output_cost_per_million")?,
+                cache_read_cost_per_million: row.try_get("custom_cache_read_cost_per_million")?,
+                cache_write_cost_per_million: row.try_get("custom_cache_write_cost_per_million")?,
+            },
+        );
+    }
+    Ok(prices)
+}
+
+fn price_groups(
+    rows: &[sqlx::sqlite::SqliteRow],
+    custom_prices: &HashMap<String, TokenPrice>,
+) -> Result<crate::model::PricedUsage> {
+    let mut cost_usd = 0.0;
+    let mut unpriced_tokens = 0;
+    for row in rows {
+        let model_hash: Option<String> = row.try_get("model_hash")?;
+        let model_id: String = row.try_get("model_id")?;
+        let priced = price_usage(
+            &model_id,
+            model_hash
+                .as_ref()
+                .and_then(|hash| custom_prices.get(hash).copied()),
+            non_negative(row.try_get("input_tokens")?),
+            non_negative(row.try_get("output_tokens")?),
+            non_negative(row.try_get("cache_read_tokens")?),
+            non_negative(row.try_get("cache_write_tokens")?),
+        );
+        cost_usd += priced.cost_usd;
+        unpriced_tokens += priced.unpriced_tokens;
+    }
+    Ok(crate::model::PricedUsage {
+        cost_usd,
+        unpriced_tokens,
+    })
 }
 
 fn fresh_input_sql() -> &'static str {

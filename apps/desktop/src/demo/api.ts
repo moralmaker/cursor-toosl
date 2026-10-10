@@ -216,6 +216,9 @@ function createModel({ hash, order, name, type, url, modelId, endpoint = "/v1/re
     anthropic_max_tokens: type === "anthropic" ? 32_000 : null,
     anthropic_thinking_effort: type === "anthropic" ? "high" : null,
     thinking_budget_tokens: null,
+    custom_price: null,
+    price_source: "unpriced",
+    price: null,
     created_at_ms: FIXED_NOW - order * 86_400_000,
     updated_at_ms: FIXED_NOW,
   };
@@ -248,6 +251,8 @@ function createOverview(params: URLSearchParams): Overview {
       cache_read_tokens: totals.cacheRead,
       cache_write_tokens: totals.cacheWrite,
       output_tokens: totals.output,
+      estimated_cost_usd: 0,
+      unpriced_tokens: totals.input + totals.cacheRead + totals.cacheWrite + totals.output,
     },
     token_usage_granularity: granularity,
     token_usage_series: series,
@@ -264,6 +269,9 @@ function createSeries(count: number, step: number, end: number): OverviewTokenUs
       cache_read_tokens: Math.round(79_200 * wave),
       cache_write_tokens: Math.round(7_500 * wave),
       output_tokens: Math.round(12_500 * wave),
+      llm_calls: Math.max(1, Math.round(4 * wave)),
+      estimated_cost_usd: 0,
+      unpriced_tokens: 0,
     };
   });
 }

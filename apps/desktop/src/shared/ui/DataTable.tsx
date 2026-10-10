@@ -12,12 +12,14 @@ export type DataTableColumn<T> = {
   sticky?: "right";
 };
 
-export function DataTable<T>({ rows, columns, rowKey, minWidth, emptyText = t("暂无数据") }: {
+export function DataTable<T>({ rows, columns, rowKey, minWidth, emptyText = t("暂无数据"), rowTone, onRowClick }: {
   rows: T[];
   columns: DataTableColumn<T>[];
   rowKey: (row: T) => string | number;
   minWidth?: number | string;
   emptyText?: ReactNode;
+  rowTone?: (row: T) => string | undefined;
+  onRowClick?: (row: T) => void;
 }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -29,7 +31,15 @@ export function DataTable<T>({ rows, columns, rowKey, minWidth, emptyText = t("�
       <ScrollableContent horizontal className={[styles.viewport, rows.length === 0 ? styles.emptyViewport : ""].filter(Boolean).join(" ")} viewportClassName={styles.tableViewport} contentClassName={styles.tableContent} scrollbarInsetTop="33px">
         <table className={styles.table} style={{ minWidth }}>
         <thead><tr>{columns.map((column) => <th key={column.key} className={columnClass(column)}>{column.header}</th>)}</tr></thead>
-        <tbody>{pageRows.map((row) => <tr key={rowKey(row)}>{columns.map((column) => <td key={column.key} className={columnClass(column)} title={column.title?.(row)}>{column.render(row)}</td>)}</tr>)}</tbody>
+        <tbody>{pageRows.map((row) => <tr
+          key={rowKey(row)}
+          data-tone={rowTone?.(row)}
+          className={onRowClick ? styles.clickable : undefined}
+          onClick={onRowClick ? (event) => {
+            if ((event.target as HTMLElement).closest("button, a, input, label")) return;
+            onRowClick(row);
+          } : undefined}
+        >{columns.map((column) => <td key={column.key} className={columnClass(column)} title={column.title?.(row)}>{column.render(row)}</td>)}</tr>)}</tbody>
         </table>
       </ScrollableContent>
       {rows.length === 0 && <div className={styles.emptyState}>{emptyText}</div>}

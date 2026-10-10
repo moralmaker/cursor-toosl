@@ -47,6 +47,7 @@ async fn summarize_replaces_model_history_and_preserves_cursor_history() {
             anthropic_max_tokens: None,
             anthropic_thinking_effort: None,
             thinking_budget_tokens: None,
+            custom_price: None,
         })
         .await
         .unwrap();
@@ -223,6 +224,7 @@ async fn automatic_compaction_preflights_provider_input_and_records_rebuilt_toke
             anthropic_max_tokens: None,
             anthropic_thinking_effort: None,
             thinking_budget_tokens: None,
+            custom_price: None,
         })
         .await
         .unwrap();
@@ -338,6 +340,7 @@ async fn incremental_preflight_uses_conversation_anchor_across_model_switch() {
             anthropic_max_tokens: None,
             anthropic_thinking_effort: None,
             thinking_budget_tokens: None,
+            custom_price: None,
         })
         .await
         .unwrap();
@@ -365,6 +368,7 @@ async fn incremental_preflight_uses_conversation_anchor_across_model_switch() {
             anthropic_max_tokens: None,
             anthropic_thinking_effort: None,
             thinking_budget_tokens: None,
+            custom_price: None,
         })
         .await
         .unwrap();
@@ -440,6 +444,7 @@ async fn irreducibly_oversized_current_input_fails_before_provider_dispatch() {
             anthropic_max_tokens: None,
             anthropic_thinking_effort: None,
             thinking_budget_tokens: None,
+            custom_price: None,
         })
         .await
         .unwrap();
@@ -498,6 +503,7 @@ fn windowed_model(model_id: &str, context_window_tokens: Option<u64>) -> ModelCo
         anthropic_max_tokens: None,
         anthropic_thinking_effort: None,
         thinking_budget_tokens: None,
+        custom_price: None,
     }
 }
 

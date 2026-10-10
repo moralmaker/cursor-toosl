@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from "react";
 import { api, type LegacyModelImportPreview } from "../../shared/api";
 import { appStore } from "../../shared/store/appStore";
-import { ConfirmDialog } from "../../shared/ui/ConfirmDialog";
+import controls from "../../shared/ui/Controls.module.scss";
 import { useMessage } from "../../shared/ui/message";
+import { ContentPanel } from "../../shell/ContentPanel";
 import styles from "./LegacyModelImport.module.scss";
 
 type LegacyModelImportControl = {
@@ -50,15 +51,14 @@ export function LegacyModelImport({ children }: { children: (control: LegacyMode
 
   return <>
     {children({ busy: previewing || importing, previewing, open: () => void open() })}
-    <ConfirmDialog
+    <ContentPanel
       open={preview !== null}
       title={t("确认导入旧版模型配置")}
-      busy={importing}
-      wide
-      cancelLabel={t("取消")}
-      confirmLabel={t("确认导入")}
-      onCancel={() => setPreview(null)}
-      onConfirm={() => void confirm()}
+      onClose={() => { if (!importing) setPreview(null); }}
+      footer={<>
+        <button type="button" className={controls.secondary} disabled={importing} onClick={() => setPreview(null)}>{t("取消")}</button>
+        <button type="button" className={controls.primary} disabled={importing || !preview} onClick={() => void confirm()}>{importing ? t("处理中…") : t("确认导入")}</button>
+      </>}
     >
       {preview && <div className={styles.content}>
         <div className={styles.source}>
@@ -83,7 +83,7 @@ export function LegacyModelImport({ children }: { children: (control: LegacyMode
         </div>
         <small className={styles.hint}>{t("重复导入相同配置不会创建重复模型；已经存在的模型会自动跳过。")}</small>
       </div>}
-    </ConfirmDialog>
+    </ContentPanel>
   </>;
 }
 

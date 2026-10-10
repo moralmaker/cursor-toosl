@@ -120,6 +120,8 @@ pub struct ModelConfigInput {
     #[serde(default)]
     pub anthropic_thinking_effort: Option<String>,
     pub thinking_budget_tokens: Option<u64>,
+    #[serde(default)]
+    pub custom_price: Option<ModelTokenPrice>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -148,8 +150,80 @@ pub struct ModelConfig {
     pub anthropic_max_tokens: Option<u64>,
     pub anthropic_thinking_effort: Option<String>,
     pub thinking_budget_tokens: Option<u64>,
+    pub custom_price: Option<ModelTokenPrice>,
+    pub price_source: PriceSource,
+    pub price: Option<ModelTokenPrice>,
     pub created_at_ms: i64,
     pub updated_at_ms: i64,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
+pub struct ModelTokenPrice {
+    pub input_cost_per_million: f64,
+    pub output_cost_per_million: f64,
+    pub cache_read_cost_per_million: f64,
+    pub cache_write_cost_per_million: f64,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PriceSource {
+    Official,
+    Custom,
+    Unpriced,
+}
+
+impl ModelTokenPrice {
+    pub fn validated(self) -> Result<Self> {
+        for (label, value) in [
+            ("input price", self.input_cost_per_million),
+            ("output price", self.output_cost_per_million),
+            ("cache read price", self.cache_read_cost_per_million),
+            ("cache write price", self.cache_write_cost_per_million),
+        ] {
+            if !value.is_finite() || value < 0.0 {
+                return Err(Error::Config(format!(
+                    "{label} must be a non-negative number"
+                )));
+            }
+        }
+        Ok(self)
+    }
+}
+
+pub fn resolved_price(
+    model_id: &str,
+    custom_price: Option<ModelTokenPrice>,
+) -> (PriceSource, Option<ModelTokenPrice>) {
+    if let Some(custom_price) = custom_price {
+        return (PriceSource::Custom, Some(custom_price));
+    }
+    match super::official_price(model_id) {
+        Some(price) => (PriceSource::Official, Some(ModelTokenPrice::from(price))),
+        None => (PriceSource::Unpriced, None),
+    }
+}
+
+impl From<super::TokenPrice> for ModelTokenPrice {
+    fn from(price: super::TokenPrice) -> Self {
+        Self {
+            input_cost_per_million: price.input_cost_per_million,
+            output_cost_per_million: price.output_cost_per_million,
+            cache_read_cost_per_million: price.cache_read_cost_per_million,
+            cache_write_cost_per_million: price.cache_write_cost_per_million,
+        }
+    }
+}
+
+impl From<ModelTokenPrice> for super::TokenPrice {
+    fn from(price: ModelTokenPrice) -> Self {
+        Self {
+            input_cost_per_million: price.input_cost_per_million,
+            output_cost_per_million: price.output_cost_per_million,
+            cache_read_cost_per_million: price.cache_read_cost_per_million,
+            cache_write_cost_per_million: price.cache_write_cost_per_million,
+        }
+    }
 }
 
 impl ModelConfig {
@@ -236,6 +310,10 @@ pub fn normalize_model_input(input: &ModelConfigInput) -> Result<ModelConfigInpu
     validate_object(&input.openai_extra_params, "OpenAI extra params")?;
     validate_object(&input.anthropic_extra_params, "Anthropic extra params")?;
     validate_headers(&input.custom_headers)?;
+    let custom_price = input
+        .custom_price
+        .map(ModelTokenPrice::validated)
+        .transpose()?;
 
     let normalized = ModelConfigInput {
         sort_order: input.sort_order.max(0),
@@ -272,6 +350,7 @@ pub fn normalize_model_input(input: &ModelConfigInput) -> Result<ModelConfigInpu
         anthropic_max_tokens: positive(input.anthropic_max_tokens, "Anthropic max tokens")?,
         anthropic_thinking_effort,
         thinking_budget_tokens: positive(input.thinking_budget_tokens, "thinking budget")?,
+        custom_price,
     };
     resolve_request_url(
         normalized.model_type,

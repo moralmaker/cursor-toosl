@@ -7,6 +7,8 @@ description: Implement and review the Cursor TOOLS React/Tauri desktop frontend.
 
 Build on the components and theme system already present in `apps/desktop`. Preserve the Tauri HTTP boundary; frontend management features call `/__tools-api__/api` and never add IPC business APIs.
 
+Visual design follows [desktop-ui](../desktop-ui/SKILL.md)（深空精工：信号青、Solar 双色图标、侧栏与关于页）。改外观、导航或新页面时两条一起用。
+
 ## Desktop HTTP communication
 
 - Treat the Rust management server as the single HTTP origin for the desktop UI. The main WebView and browser-opened detail pages must use `http://127.0.0.1:<dynamic-port>/__tools-api__/`; do not load the main UI from `tauri://localhost` or expose a second frontend origin.

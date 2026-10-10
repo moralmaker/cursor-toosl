@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { api, pluginText, type PluginDescriptor, type PluginImportFile, type PluginRuntimePhase, type PluginRuntimeStatus } from "../../shared/api";
 import { useI18n } from "../../i18n/store";
+import { ContentPanel } from "../../shell/ContentPanel";
 import { PageContent } from "../../shell/layout/PageContent";
+import { PageActions } from "../../shell/PageActions";
 import { appStore, useAppStore } from "../../shared/store/appStore";
 import { ActionMenu, type ActionMenuItem } from "../../shared/ui/ActionMenu";
 import { Button } from "../../shared/ui/Button";
 import { Card } from "../../shared/ui/Card";
-import { Modal } from "../../shared/ui/Modal";
+import { gateIcons } from "../../shared/ui/gateIcons";
+import { Icon } from "../../shared/ui/Icon";
+import { solarNav } from "../../shared/ui/solarNav";
+import controls from "../../shared/ui/Controls.module.scss";
 import { useMessage } from "../../shared/ui/message";
 import { TruncatedButton } from "../../shared/ui/TruncatedButton";
 import { PluginAddPanel, PluginSettingsPanel } from "./PluginResourcePanels";
@@ -14,7 +19,6 @@ import styles from "./PluginManagementPage.module.scss";
 
 export function PluginManagementPage() {
   const { pluginRuntime, plugins } = useAppStore();
-  const [progressOpen, setProgressOpen] = useState(false);
   const [starting, setStarting] = useState(false);
   const [selected, setSelected] = useState<{ pluginId: string; mode: "add" | "settings" } | null>(null);
   const cancelRequested = useRef(false);
@@ -26,7 +30,6 @@ export function PluginManagementPage() {
 
   useEffect(() => {
     if (pluginRuntime?.state !== "initializing") return;
-    if (!cancelRequested.current) setProgressOpen(true);
     const timer = window.setInterval(() => void appStore.refreshPluginRuntime(), 300);
     return () => window.clearInterval(timer);
   }, [pluginRuntime?.state]);
@@ -35,82 +38,93 @@ export function PluginManagementPage() {
     if (starting) return;
     cancelRequested.current = false;
     setStarting(true);
-    setProgressOpen(true);
     const status = await appStore.initializePluginRuntime();
     setStarting(false);
-    if (!status) {
-      setProgressOpen(false);
-    } else if (cancelRequested.current && status.state === "initializing") {
+    if (cancelRequested.current && status?.state === "initializing") {
       void appStore.cancelPluginRuntimeInitialization();
     }
   };
 
-  const closeProgress = () => {
-    setProgressOpen(false);
+  const cancelInitialize = () => {
     cancelRequested.current = true;
-    if (pluginRuntime?.state === "initializing") {
-      void appStore.cancelPluginRuntimeInitialization();
-    }
+    if (pluginRuntime?.state === "initializing") void appStore.cancelPluginRuntimeInitialization();
   };
 
   const content = pluginRuntime?.state === "ready"
     ? <PluginCards plugins={plugins} onOpen={(pluginId, mode) => setSelected({ pluginId, mode })} />
-    : <RuntimeGate status={pluginRuntime} starting={starting} onInitialize={() => void initialize()} />;
-  const estimatedHeight = plugins.length > 0
-    ? Math.max(320, Math.ceil(plugins.length / 3) * 180)
-    : 320;
+    : <RuntimeGate status={pluginRuntime} starting={starting} onInitialize={() => void initialize()} onCancel={cancelInitialize} />;
+  const estimatedHeight = pluginRuntime?.state === "ready"
+    ? Math.max(160, plugins.length * 76)
+    : 280;
 
   return <>
+    {pluginRuntime?.state === "ready" && <PageActions>
+      <button type="button" className={controls.secondary} disabled={starting} onClick={() => void initialize()}>{t("重新初始化插件")}</button>
+    </PageActions>}
     <PageContent
-      title={t("插件配置")}
+      title={t("插件")}
       sections={[{ key: "installed-plugins", estimatedHeight, content }]}
     />
-    <RuntimeProgressModal
-      open={progressOpen}
-      status={pluginRuntime}
-      starting={starting}
-      onClose={closeProgress}
-    />
-    <Modal
-      fullHeight
+    <ContentPanel
       open={selectedPlugin !== null}
       title={selected?.mode === "settings"
         ? t("{name} 账号管理", { name: selectedPlugin?.name ?? "" })
         : t("添加 {name} 账号", { name: selectedPlugin?.name ?? "" })}
       onClose={() => setSelected(null)}
-      onSubmit={() => setSelected(null)}
-      submitLabel={t("确定")}
+      footer={<button type="button" className={controls.primary} onClick={() => setSelected(null)}>{t("确定")}</button>}
     >
       {selected?.mode === "add" && selectedPlugin && <PluginAddPanel plugin={selectedPlugin} onConfigured={() => setSelected(null)} />}
       {selected?.mode === "settings" && selectedPlugin && <PluginSettingsPanel plugin={selectedPlugin} />}
-    </Modal>
+    </ContentPanel>
   </>;
 }
 
-function RuntimeGate({ status, starting, onInitialize }: { status: PluginRuntimeStatus | null; starting: boolean; onInitialize: () => void }) {
+function RuntimeGate({ status, starting, onInitialize, onCancel }: {
+  status: PluginRuntimeStatus | null;
+  starting: boolean;
+  onInitialize: () => void;
+  onCancel: () => void;
+}) {
   const checking = status === null;
   const initializing = starting || status?.state === "initializing";
   const failed = status?.state === "failed";
   const unsupported = status?.state === "unsupported";
+  const downloaded = status?.downloaded_bytes ?? 0;
+  const total = status?.total_bytes ?? null;
+  const percent = total && total > 0 ? Math.min(100, Math.round((downloaded / total) * 100)) : null;
   const title = checking
     ? t("正在检查插件运行时")
+    : initializing
+      ? t("初始化插件运行时")
+      : failed
+        ? t("插件运行时初始化失败")
+        : unsupported
+          ? t("当前系统不支持插件运行时")
+          : t("需要先初始化插件运行时");
+  const description = initializing
+    ? phaseText(status?.phase ?? null)
     : failed
-      ? t("插件运行时初始化失败")
+      ? status?.error || t("请重试初始化")
       : unsupported
-        ? t("当前系统不支持插件运行时")
-        : t("需要先初始化插件运行时");
-  const description = failed
-    ? t("请重试初始化")
-    : unsupported
-      ? status.error ?? t("当前操作系统或 CPU 架构暂不受支持")
-      : t("初始化将下载并安装插件运行时。");
+        ? status.error ?? t("当前操作系统或 CPU 架构暂不受支持")
+        : t("初始化将下载并安装插件运行时。");
 
+  const icon = unsupported ? gateIcons.forbidden : failed ? gateIcons.danger : solarNav["widget-5"].line;
   return <div className={styles.gate}>
+    <Icon className={failed ? styles.gateIconBad : styles.gateIcon} icon={icon} size="1.75em" />
     <strong>{title}</strong>
     <span>{description}</span>
-    {!unsupported && <Button variant="primary" disabled={checking || initializing} onClick={onInitialize}>
-      {checking ? t("检查中…") : initializing ? t("初始化中…") : failed ? t("重新初始化插件") : t("初始化插件")}
-    </Button>}
+    {initializing && status?.phase === "downloading" && <div className={styles.progressBlock}>
+      <div className={styles.progressBar} role="progressbar" aria-label={t("下载进度")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent ?? undefined}>
+        <div className={styles.progressFill} style={{ width: `${percent ?? 100}%` }} />
+      </div>
+      <span>{total ? t("已下载 {downloaded} / {total}", { downloaded: formatBytes(downloaded), total: formatBytes(total) }) : t("已下载 {downloaded}", { downloaded: formatBytes(downloaded) })}</span>
+    </div>}
+    {unsupported ? null : initializing
+      ? <Button disabled={checking} onClick={onCancel}>{t("取消")}</Button>
+      : <Button variant="primary" disabled={checking} onClick={onInitialize}>
+        {checking ? t("检查中…") : failed ? t("重新初始化插件") : t("初始化插件")}
+      </Button>}
   </div>;
 }
 
@@ -120,13 +134,14 @@ function PluginCards({ plugins, onOpen }: {
 }) {
   if (plugins.length === 0) {
     return <div className={styles.empty}>
+      <Icon className={styles.gateIcon} icon={gateIcons.box} size="1.75em" />
       <strong>{t("还没有安装插件")}</strong>
       <span>{t("安装插件后会显示在这里。")}</span>
     </div>;
   }
-  return <div className={styles.pluginGrid}>
+  return <Card className={styles.list}>
     {plugins.map((plugin) => <PluginCard key={plugin.id} plugin={plugin} onOpen={onOpen} />)}
-  </div>;
+  </Card>;
 }
 
 function PluginCard({ plugin, onOpen }: {
@@ -203,29 +218,17 @@ function PluginCard({ plugin, onOpen }: {
   ];
 
   return (
-    <Card className={styles.pluginCard}>
-      <div className={styles.pluginCardTop}>
-        <img className={styles.pluginIcon} src={plugin.icon} />
-        <div className={styles.pluginIdentity}>
-          <span className={styles.pluginName}>{plugin.name}</span>
-          <span className={styles.pluginId}>{subtitle}</span>
-        </div>
-        <span
-          className={`${styles.stateBadge} ${configured ? styles.stateReady : ""}`}
-        >
-          {configured ? t("已配置") : t("未配置")}
+    <div className={styles.row}>
+      <span className={styles.brand}>{plugin.icon ? <img src={plugin.icon} alt="" /> : plugin.name.slice(0, 1)}</span>
+      <div className={styles.identity}>
+        <span className={styles.title}>
+          <span className={styles.name}>{plugin.name}</span>
+          <span className={configured ? `${styles.chip} ${styles.ready}` : styles.chip}>{configured ? t("已配置") : t("未配置")}</span>
         </span>
-      </div>
-      <div className={styles.pluginMeta}>
-        <span>
-          {t("{accounts} 个账号 · {models} 个模型", {
-            accounts: accountCount,
-            models: modelCount,
-          })}
+        <span className={styles.meta}>
+          {t("{accounts} 个账号 · {models} 个模型", { accounts: accountCount, models: modelCount })}
+          {subtitle ? ` · ${subtitle}` : ""}
         </span>
-        {plugin.author && (
-          <span className={styles.pluginAuthor}>{plugin.author}</span>
-        )}
       </div>
       <div className={styles.cardActions}>
         <TruncatedButton
@@ -257,51 +260,8 @@ function PluginCard({ plugin, onOpen }: {
           />
         )}
       </div>
-    </Card>
-  );
-}
-
-function RuntimeProgressModal({ open, status, starting, onClose }: { open: boolean; status: PluginRuntimeStatus | null; starting: boolean; onClose: () => void }) {
-  const initializing = starting || status?.state === "initializing";
-  const downloaded = status?.downloaded_bytes ?? 0;
-  const total = status?.total_bytes ?? null;
-  const percent = total && total > 0 ? Math.min(100, Math.round((downloaded / total) * 100)) : null;
-  const stage = status?.state === "ready"
-    ? t("插件运行时初始化完成")
-    : status?.state === "failed"
-      ? t("插件运行时初始化失败")
-      : phaseText(status?.phase ?? null);
-
-  return <Modal
-    open={open}
-    title={t("初始化插件运行时")}
-    closeLabel={status?.state === "ready" ? t("完成") : initializing ? t("取消") : t("关闭")}
-    onClose={onClose}
-  >
-    <div className={styles.progressContent} aria-live="polite">
-      <strong>{stage}</strong>
-      {status?.phase === "downloading" && <>
-        <div
-          className={styles.progressBar}
-          role="progressbar"
-          aria-label={t("下载进度")}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={percent ?? undefined}
-        >
-          <div
-            className={styles.progressFill}
-            style={{ width: `${percent ?? 100}%` }}
-          />
-        </div>
-        <span>
-          {total ? t("已下载 {downloaded} / {total}", { downloaded: formatBytes(downloaded), total: formatBytes(total) }) : t("已下载 {downloaded}", { downloaded: formatBytes(downloaded) })}
-        </span>
-      </>}
-      {status?.state === "failed" && <span className={styles.error}>{t("请重试初始化")}</span>}
-      {status?.state === "ready" && <span>{t("插件运行时 {version} 已安装，可以开始使用插件。", { version: status.version })}</span>}
     </div>
-  </Modal>;
+  );
 }
 
 function phaseText(phase: PluginRuntimePhase | null) {

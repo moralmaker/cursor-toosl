@@ -1,98 +1,84 @@
 @use "../../styles/typography" as type;
 
-.pluginGrid {
+.list {
+  padding: 0 12px;
+}
+
+.row {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 12px;
-  padding-top: 10px;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 2px;
+  border-top: 1px solid var(--vscode-sideBar-border);
+
+  &:first-child { border-top: 0; }
 }
 
-.pluginCard {
+.brand {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: var(--vscode-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, var(--vscode-sideBar-border));
+  border-radius: 8px;
+  font-size: type.$font-size-2xs;
+  font-weight: 700;
+
+  img {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+  }
+}
+
+.identity {
   min-width: 0;
-  min-height: 150px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 18px;
+  gap: 2px;
 }
 
-.pluginCardTop {
+.title {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
-.pluginIcon {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 42px;
-  height: 42px;
-
-  border-radius: 10px;
-
-}
-
-.pluginIdentity {
-  min-width: 0;
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.pluginName,
-.pluginId {
+.name,
+.meta {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.pluginName {
+.name {
   color: var(--vscode-foreground);
   font-size: type.$font-size-base;
   font-weight: 600;
 }
 
-.pluginId {
+.meta {
   color: var(--vscode-descriptionForeground);
-  font-size: type.$font-size-2xs;
+  font-size: type.$font-size-xs;
 }
 
-.stateBadge {
+.chip {
   flex: 0 0 auto;
-  align-self: flex-start;
-  padding: 3px 8px;
+  padding: 0 6px;
   color: var(--vscode-descriptionForeground);
-  border: 1px solid var(--vscode-sideBar-border);
+  border: 1px solid currentColor;
   border-radius: 999px;
   font-size: type.$font-size-2xs;
-  white-space: nowrap;
+  line-height: 18px;
 }
 
-.stateReady {
-  color: var(--vscode-testing-iconPassed, #73c991);
-  background: color-mix(in srgb, var(--vscode-testing-iconPassed, #73c991) 10%, transparent);
-  border-color: color-mix(in srgb, var(--vscode-testing-iconPassed, #73c991) 28%, transparent);
-}
-
-.pluginMeta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  color: var(--vscode-descriptionForeground);
-  font-size: type.$font-size-2xs;
-}
-
-.pluginAuthor {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  opacity: 0.85;
+.ready {
+  color: var(--vscode-textLink-foreground);
 }
 
 .cardActions {
@@ -115,6 +101,14 @@
   margin-left: auto;
 }
 
+.gateIcon {
+  color: var(--vscode-textLink-foreground);
+}
+
+.gateIconBad {
+  color: var(--vscode-errorForeground);
+}
+
 .gate,
 .empty {
   min-height: 250px;
@@ -123,10 +117,12 @@
   align-items: center;
   justify-content: center;
   gap: 9px;
+  padding: 28px 20px;
   color: var(--vscode-descriptionForeground);
   text-align: center;
-  border: 1px dashed var(--vscode-sideBar-border);
-  border-radius: var(--oa-overlay-radius);
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-sideBar-border);
+  border-radius: 12px;
 
   strong {
     color: var(--vscode-foreground);
@@ -143,6 +139,13 @@
   margin-top: 6px;
 }
 
+.progressBlock {
+  width: min(420px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .progressBar {
   width: 100%;
   height: 8px;
@@ -154,7 +157,7 @@
 // 反向斜纹(-45°)+ 无限反向滚动;未知总量时以 100% 宽度作不确定态。
 .progressFill {
   height: 100%;
-  background-color: var(--vscode-progressBar-background, #0e70c0);
+  background-color: var(--vscode-button-background);
   background-image: linear-gradient(
     -45deg,
     rgb(255 255 255 / 24%) 25%,

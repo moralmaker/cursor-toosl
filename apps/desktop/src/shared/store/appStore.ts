@@ -36,6 +36,8 @@ let snapshot: AppSnapshot = {
       cache_read_tokens: 0,
       cache_write_tokens: 0,
       output_tokens: 0,
+      estimated_cost_usd: 0,
+      unpriced_tokens: 0,
     },
     token_usage_granularity: "day",
     token_usage_series: [],

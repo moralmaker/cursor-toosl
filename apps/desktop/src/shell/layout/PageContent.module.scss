@@ -12,7 +12,7 @@
 .title {
   position: absolute;
   z-index: 21;
-  top: var(--app-content-top);
+  top: var(--app-header-end);
   left: max(var(--app-page-padding), calc((100% - var(--app-page-max-width)) / 2));
   margin: 0;
   padding-left:0;

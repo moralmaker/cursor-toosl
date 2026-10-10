@@ -173,6 +173,7 @@ export function ModelSelect(props: ModelSelectProps) {
       id={menuId}
       ref={menu}
       className={styles.menu}
+      data-model-select-menu=""
       aria-label={label}
       style={position}
       onPointerDown={(event) => event.stopPropagation()}

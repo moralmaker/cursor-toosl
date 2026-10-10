@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cursor TOOLS · UI 审查稿</title>
+  <link rel="stylesheet" href="styles/tokens.css" />
+  <link rel="stylesheet" href="styles/shell.css" />
+  <link rel="stylesheet" href="styles/pages.css" />
+</head>
+<body>
+  <div class="studio">
+    <div class="review" aria-label="审查工具">
+      <div class="grp"><span class="lab">主题</span>
+        <button class="on" data-review="theme:dark">深色</button>
+        <button data-review="theme:light">浅色</button>
+      </div>
+      <div class="grp"><span class="lab">平台</span>
+        <button class="on" data-review="platform:macos">macOS</button>
+        <button data-review="platform:windows">Windows</button>
+      </div>
+      <div class="grp"><span class="lab">窗口</span>
+        <button data-review="size:820">820×558</button>
+        <button class="on" data-review="size:1040">1040×700</button>
+        <button data-review="size:1280">1280×800</button>
+      </div>
+      <div class="grp"><span class="lab">场景</span>
+        <button class="on" data-review="scenario:normal">正常使用</button>
+        <button data-review="scenario:first">首次使用</button>
+        <button data-review="scenario:error">异常</button>
+      </div>
+      <div class="grp"><span class="lab">视图</span>
+        <button class="on" data-review="view:app">应用</button>
+        <button data-review="view:spec">设计规范</button>
+      </div>
+      <button data-review="motion:toggle">减少动效</button>
+      <span class="hint">⌘K 命令面板 · ⌘\ 收起侧栏 · ⌘1–4 / ⌘, 跳转 · 标「需确认」的是新增交互</span>
+    </div>
+
+    <div class="window" id="window" data-platform="macos" data-size="1040">
+      <header class="titlebar">
+        <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div class="identity">Cursor 助手 v1.0.1</div>
+        <div class="win-controls"></div>
+      </header>
+      <div class="frame">
+        <aside class="side">
+          <button class="capsule" id="capsule" type="button"></button>
+          <nav class="nav" id="nav" aria-label="主菜单"></nav>
+          <div class="side-gap"></div>
+          <div class="ad" id="ad">
+            <i class="unread"></i>
+            <div class="mark" id="ad-icon"></div>
+            <div class="ad-copy"><strong>模型通道推荐</strong><p>接上自己的模型，和官方模型一起用。</p></div>
+            <button class="x" id="ad-x" type="button" data-act="hidead" data-tip="不再显示广告">×</button>
+          </div>
+          <button class="set-item" id="settings-btn" type="button" data-page="settings" data-tip="设置 ⌘,"></button>
+        </aside>
+        <main class="main">
+          <div class="page-head"><h1 id="title">概览</h1><div class="actions" id="actions"></div></div>
+          <div class="scroll-shadow"></div>
+          <div class="scroll" id="scroll"></div>
+          <div id="overlay"></div>
+          <div class="toasts" id="toasts"></div>
+        </main>
+      </div>
+    </div>
+  </div>
+  <script src="../node_modules/echarts/dist/echarts.min.js"></script>
+  <script src="scripts/icons.js"></script>
+  <script src="scripts/data.js"></script>
+  <script src="scripts/charts.js"></script>
+  <script src="scripts/app.js"></script>
+  <script>
+    document.getElementById("ad-icon").innerHTML = `<svg class="ico" viewBox="0 0 24 24">${ICON_SET.stars.line}</svg>`;
+    document.querySelector(".win-controls").innerHTML = [
+      ["minimize-square", "最小化"],
+      ["maximize-square", "最大化"],
+      ["close-square", "关闭"],
+    ].map(([n, tip], i) => `<button type="button" class="${i===2?"x":""}" data-act="noop" data-tip="${tip}"><svg class="ico" viewBox="0 0 24 24">${(ICON_SET[n].linear || ICON_SET[n].line)}</svg></button>`).join("");
+  </script>
+</body>
+</html>

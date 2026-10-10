@@ -1,0 +1,47 @@
+@use "../../../styles/typography" as type;
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.step,
+.current,
+.done {
+  min-width: 0;
+  padding: 10px 12px;
+  text-align: left;
+  color: var(--vscode-descriptionForeground);
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-editorWidget-border);
+  border-radius: var(--oa-card-radius);
+  font: inherit;
+
+  b {
+    display: block;
+    overflow: hidden;
+    color: var(--vscode-foreground);
+    font-size: type.$font-size-base;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  span {
+    font-size: type.$font-size-xs;
+  }
+
+  &:hover { background: var(--vscode-list-hoverBackground); }
+  &:disabled { opacity: 0.6; cursor: default; }
+}
+
+.current {
+  border-color: var(--vscode-focusBorder);
+}
+
+.done {
+  color: var(--vscode-textLink-foreground);
+
+  b { color: inherit; }
+}

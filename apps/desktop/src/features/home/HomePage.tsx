@@ -1,36 +1,60 @@
 import { useEffect, useState } from "react";
 import { api, pluginText, type Overview } from "../../shared/api";
-import { ContributionCalendarChart } from "./charts/ContributionCalendarChart";
+import { ContributionCalendarChart, HEATMAP_WEEKS, heatmapWindow, type ContributionDay } from "./charts/ContributionCalendarChart";
 import { DailyTokenUsageChart } from "./charts/DailyTokenUsageChart";
 import { HomeMetrics } from "./metrics/HomeMetrics";
 import { PageContent } from "../../shell/layout/PageContent";
 import type { VirtualPageSection } from "../../shell/layout/VirtualPage";
-import { OverviewTimeRangeFilter, type OverviewRangePreset, type QuickPreset } from "./overview/OverviewTimeRangeFilter";
+import { OverviewTimeRangeFilter, type OverviewCustomApply, type OverviewRangePreset } from "./overview/OverviewTimeRangeFilter";
+import { QuickStart, useQuickStart } from "./overview/QuickStart";
 import { PageActions } from "../../shell/PageActions";
 import { appStore, useAppStore } from "../../shared/store/appStore";
-import { formatTimeInput, parseTimeInput } from "../../shared/utils/parseTimeInput";
+import { formatTimeInput } from "../../shared/utils/parseTimeInput";
 import { modelProviderName } from "../../shared/utils/modelProvider";
 import { claudeIcon, flatColorOrganizationIcon, openAiIcon } from "../../shared/ui/icons";
 import { useI18n } from "../../i18n/store";
 
 type TimeRange = { startMs: number; endMs: number };
 
-const CALENDAR_DAYS = 365;
-const DAY_MS = 24 * 60 * 60_000;
+function localDateKey(ms: number) {
+  const date = new Date(ms);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
 
-function contributionCalendarData(overview: Overview, endMs: number) {
-  const tokensByDate = new Map<string, number>();
-  for (const bucket of overview.token_usage_series) {
-    const date = new Date(bucket.bucket_start_ms).toISOString().slice(0, 10);
-    const tokens = bucket.input_tokens + bucket.cache_read_tokens + bucket.cache_write_tokens + bucket.output_tokens;
-    tokensByDate.set(date, (tokensByDate.get(date) ?? 0) + tokens);
+function heatmapDays(overview: Overview | null, range: TimeRange): ContributionDay[] {
+  const totals = new Map<string, { tokens: number; requests: number; cost: number; unpriced: number }>();
+  for (const bucket of overview?.token_usage_series ?? []) {
+    const date = localDateKey(bucket.bucket_start_ms);
+    const current = totals.get(date) ?? { tokens: 0, requests: 0, cost: 0, unpriced: 0 };
+    current.tokens += bucket.input_tokens + bucket.cache_read_tokens + bucket.cache_write_tokens + bucket.output_tokens;
+    current.requests += bucket.llm_calls ?? 0;
+    current.cost += bucket.estimated_cost_usd ?? 0;
+    current.unpriced += bucket.unpriced_tokens ?? 0;
+    totals.set(date, current);
   }
-  const lastDay = new Date(Math.max(0, endMs - 1));
-  lastDay.setUTCHours(0, 0, 0, 0);
-  const firstDayMs = lastDay.getTime() - (CALENDAR_DAYS - 1) * DAY_MS;
-  return Array.from({ length: CALENDAR_DAYS }, (_, offset) => {
-    const date = new Date(firstDayMs + offset * DAY_MS).toISOString().slice(0, 10);
-    return { date, tokens: tokensByDate.get(date) ?? 0 };
+  const span = heatmapWindow();
+  const today = localDateKey(Date.now());
+  const rangeStart = localDateKey(range.startMs);
+  const rangeEnd = localDateKey(Math.max(range.startMs, range.endMs - 1));
+  const cursor = new Date(span.startMs);
+  return Array.from({ length: HEATMAP_WEEKS * 7 }, () => {
+    const date = localDateKey(cursor.getTime());
+    const stat = totals.get(date);
+    const future = date > today;
+    const inRange = !future && date >= rangeStart && date <= rangeEnd;
+    const day: ContributionDay = {
+      date,
+      tokens: inRange ? stat?.tokens ?? 0 : 0,
+      requests: inRange ? stat?.requests ?? 0 : 0,
+      cost: inRange ? stat?.cost ?? 0 : 0,
+      unpricedTokens: inRange ? stat?.unpriced ?? 0 : 0,
+      inRange,
+      future,
+    };
+    cursor.setDate(cursor.getDate() + 1);
+    return day;
   });
 }
 
@@ -54,16 +78,19 @@ function presetRange(preset: Exclude<OverviewRangePreset, "custom">, now = new D
 
 export function HomePage() {
   const { overview, busy, models, plugins } = useAppStore();
+  const quickStart = useQuickStart();
   const { locale } = useI18n();
   const [preset, setPreset] = useState<OverviewRangePreset>("month");
-  const [quick, setQuick] = useState<QuickPreset | null>(null);
   const [customRange, setCustomRange] = useState<TimeRange | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
+  const [liveEnd, setLiveEnd] = useState(false);
+  const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [appliedModels, setAppliedModels] = useState<string[]>([]);
   const [rangeOverview, setRangeOverview] = useState<Overview | null>(null);
+  const [heatmapOverview, setHeatmapOverview] = useState<Overview | null>(null);
   const [rangeBusy, setRangeBusy] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const selectedRange = preset === "custom" ? customRange : presetRange(preset);
@@ -83,6 +110,29 @@ export function HomePage() {
     return () => { active = false; };
   }, [preset, customRange, overview, refreshVersion, appliedModels]);
 
+  useEffect(() => {
+    const span = heatmapWindow();
+    let active = true;
+    void api.overview({
+      startMs: span.startMs,
+      endMs: span.endMs,
+      modelHashes: appliedModels,
+      bucketMs: 24 * 60 * 60_000,
+    }).then((next) => {
+      if (active) setHeatmapOverview(next);
+    });
+    return () => { active = false; };
+  }, [appliedModels, overview, refreshVersion]);
+
+  useEffect(() => {
+    if (!liveEnd || preset !== "custom") return;
+    const timer = window.setInterval(() => {
+      setCustomRange((current) => current ? { ...current, endMs: Date.now() } : current);
+      setCustomEnd(formatTimeInput(new Date()));
+    }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [liveEnd, preset]);
+
   const filteredOverview = rangeOverview ?? overview;
   const dailyTokenUsage = filteredOverview.token_usage_series.map((bucket) => ({
     bucketStartMs: bucket.bucket_start_ms,
@@ -91,7 +141,8 @@ export function HomePage() {
     cacheWriteTokens: bucket.cache_write_tokens,
     outputTokens: bucket.output_tokens,
   }));
-  const contribution = contributionCalendarData(filteredOverview, selectedRange?.endMs ?? Date.now());
+  const contributionRange = selectedRange ?? { startMs: 0, endMs: Date.now() };
+  const contribution = heatmapDays(heatmapOverview, contributionRange);
   const metrics = {
     llmCalls: filteredOverview.metrics.llm_calls,
     successfulCalls: filteredOverview.metrics.successful_calls,
@@ -100,6 +151,8 @@ export function HomePage() {
     promptTokens: filteredOverview.metrics.prompt_tokens,
     cacheReadTokens: filteredOverview.metrics.cache_read_tokens,
     cacheWriteTokens: filteredOverview.metrics.cache_write_tokens,
+    estimatedCost: filteredOverview.metrics.estimated_cost_usd ?? 0,
+    unpricedTokens: filteredOverview.metrics.unpriced_tokens ?? 0,
   };
   const openCustom = (open: boolean) => {
     if (open && !customStart && !customEnd) {
@@ -109,30 +162,23 @@ export function HomePage() {
     }
     setCustomOpen(open);
   };
-  const applyCustom = () => {
-    const startMs = parseTimeInput(customStart);
-    const endMs = parseTimeInput(customEnd);
-    if (startMs === null || endMs === null || startMs >= endMs) return;
+  const applyCustom = ({ startMs, endMs, liveEnd: followNow, providers, models: nextModels, modelHashes }: OverviewCustomApply) => {
+    setCustomStart(formatTimeInput(new Date(startMs)));
+    setCustomEnd(formatTimeInput(new Date(endMs)));
     setCustomRange({ startMs, endMs });
-    setAppliedModels(selectedModels);
-    setQuick(null);
-    setPreset("custom");
-    setCustomOpen(false);
-  };
-  const selectQuick = (durationMs: number) => {
-    const end = new Date();
-    const start = new Date(end.getTime() - durationMs);
-    setCustomStart(formatTimeInput(start));
-    setCustomEnd(formatTimeInput(end));
-    setCustomRange({ startMs: start.getTime(), endMs: end.getTime() });
-    setAppliedModels(selectedModels);
-    setQuick(durationMs === 4 * 60 * 60_000 ? "four-hours" : "twenty-four-hours");
+    setSelectedProviders(providers);
+    setSelectedModels(nextModels);
+    setAppliedModels(modelHashes);
+    setLiveEnd(followNow);
     setPreset("custom");
     setCustomOpen(false);
   };
   const selectPreset = (value: Exclude<OverviewRangePreset, "custom">) => {
     setPreset(value);
-    setQuick(null);
+    setLiveEnd(false);
+    setSelectedProviders([]);
+    setSelectedModels([]);
+    setAppliedModels([]);
     setCustomOpen(false);
   };
   const refresh = async () => {
@@ -158,9 +204,14 @@ export function HomePage() {
     )),
   ];
   const sections: VirtualPageSection[] = [
+    ...(quickStart.visible ? [{
+      key: "quick-start",
+      estimatedHeight: 72,
+      content: <QuickStart done={quickStart.done} pending={quickStart.pending} busy={quickStart.busy} onRun={(id) => void quickStart.run(id)} />,
+    }] : []),
     {
       key: "daily-token-usage",
-      estimatedHeight: 240,
+      estimatedHeight: 268,
       content: <DailyTokenUsageChart
         data={dailyTokenUsage}
         granularity={filteredOverview.token_usage_granularity}
@@ -174,27 +225,24 @@ export function HomePage() {
 
     {
       key: "activity",
-      estimatedHeight: 106,
-      content: <ContributionCalendarChart data={contribution} />,
+      estimatedHeight: 220,
+      content: <ContributionCalendarChart days={contribution} startMs={contributionRange.startMs} endMs={contributionRange.endMs} />,
     },
   ];
 
   return <>
     <PageActions><OverviewTimeRangeFilter
       value={preset}
-      quick={quick}
       customOpen={customOpen}
       customStart={customStart}
       customEnd={customEnd}
+      liveEnd={liveEnd}
       modelOptions={modelOptions}
+      selectedProviders={selectedProviders}
       selectedModels={selectedModels}
       busy={busy || rangeBusy}
       onSelect={selectPreset}
-      onQuickSelect={selectQuick}
       onCustomOpenChange={openCustom}
-      onCustomStartChange={setCustomStart}
-      onCustomEndChange={setCustomEnd}
-      onSelectedModelsChange={setSelectedModels}
       onCustomApply={applyCustom}
       onRefresh={() => void refresh()}
     /></PageActions>

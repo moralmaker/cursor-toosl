@@ -3,13 +3,14 @@ import { api, pluginText, type CommitSettingsView } from "../../shared/api";
 import { useI18n } from "../../i18n/store";
 import { useAppStore } from "../../shared/store/appStore";
 import { Button } from "../../shared/ui/Button";
-import { Modal } from "../../shared/ui/Modal";
 import { ModelSelect, type ModelSelectOption } from "../../shared/ui/ModelSelect";
 import { claudeIcon, flatColorOrganizationIcon, openAiIcon } from "../../shared/ui/icons";
-import { TitledCard } from "../../shared/ui/TitledCard";
 import { useMessage } from "../../shared/ui/message";
 import controls from "../../shared/ui/Controls.module.scss";
+import { ContentPanel } from "../../shell/ContentPanel";
 import { modelProviderName } from "../../shared/utils/modelProvider";
+import { SettingRow, SettingsGroup } from "./SettingsGroup";
+import groupStyles from "./SettingsGroup.module.scss";
 import styles from "./CommitSettingsCard.module.scss";
 
 function errorText(cause: unknown) {
@@ -161,60 +162,45 @@ export function CommitSettingsCard() {
     ?? view?.model_id
     ?? t("加载中…");
   const action = editing ? (
-    <div className={styles.actionGroup}>
+    <div className={groupStyles.actions}>
       <Button size="small" disabled={savingModel} onClick={cancelModelEdit}>{t("取消")}</Button>
       <Button variant="primary" size="small" disabled={savingModel} onClick={() => void saveModel()}>
         {savingModel ? t("保存中…") : t("保存")}
       </Button>
     </div>
   ) : (
-    <div className={styles.actionGroup}>
-      <button type="button" className={styles.textButton} disabled={!view} onClick={openPrompt}>
-        {t("提示词设置")}
-      </button>
-      <button type="button" className={styles.textButton} disabled={!view} onClick={editModel}>
-        {t("编辑")}
-      </button>
-    </div>
+    <button type="button" className={groupStyles.textButton} disabled={!view} onClick={editModel}>{t("编辑")}</button>
   );
 
   return (
     <>
-      <TitledCard title={t("Commit 提交代码模型设置")} action={action}>
-        <div className={styles.content}>
-          <div className={styles.row}>
-            <div className={styles.details}>
-              <strong>{t("生成模型")}</strong>
-            </div>
-            {editing ? <div className={styles.select}>
-              <ModelSelect
-                mode="single"
-                value={modelDraft}
-                options={modelOptions}
-                disabled={savingModel}
-                label={t("生成模型")}
-                onChange={setModelDraft}
-              />
-            </div> : <span className={styles.value}>{selectedModelLabel}</span>}
-          </div>
-        </div>
-      </TitledCard>
+      <SettingsGroup title={t("Commit 提交代码模型设置")} action={action}>
+        <SettingRow title={t("生成模型")} description={t("用于生成提交说明，也可以选择直连。")}>
+          {editing ? <div className={groupStyles.field}>
+            <ModelSelect
+              mode="single"
+              value={modelDraft}
+              options={modelOptions}
+              disabled={savingModel}
+              label={t("生成模型")}
+              onChange={setModelDraft}
+            />
+          </div> : <span className={groupStyles.value}>{selectedModelLabel}</span>}
+        </SettingRow>
+        <SettingRow title={t("提示词设置")} description={t("可恢复默认。")}>
+          <Button size="small" disabled={!view} onClick={openPrompt}>{t("提示词设置")}</Button>
+        </SettingRow>
+      </SettingsGroup>
 
-      <Modal
+      <ContentPanel
         open={promptOpen}
         title={t("提示词设置")}
-        wide
-        fullHeight
-        busy={savingPrompt}
         onClose={() => setPromptOpen(false)}
-        onSubmit={() => void savePrompt()}
-        submitLabel={t("保存")}
-        closeLabel={t("取消")}
-        secondaryAction={
-          <button type="button" className={controls.secondary} onClick={resetPrompt}>
-            {t("恢复默认")}
-          </button>
-        }
+        footer={<>
+          <button type="button" className={`${controls.secondary} ${styles.pinStart}`} onClick={resetPrompt}>{t("恢复默认")}</button>
+          <button type="button" className={controls.secondary} disabled={savingPrompt} onClick={() => setPromptOpen(false)}>{t("取消")}</button>
+          <button type="button" className={controls.primary} disabled={savingPrompt} onClick={() => void savePrompt()}>{savingPrompt ? t("保存中…") : t("保存")}</button>
+        </>}
       >
         <textarea
           className={styles.promptEditor}
@@ -223,7 +209,7 @@ export function CommitSettingsCard() {
           aria-label={t("提交信息提示词")}
           onChange={(event) => setPromptDraft(event.target.value)}
         />
-      </Modal>
+      </ContentPanel>
     </>
   );
 }

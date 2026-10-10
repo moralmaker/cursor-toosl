@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, type CallDetail } from "../../shared/api";
 import { CallDetails } from "./CallDetails";
-import { TitledCard } from "../../shared/ui/TitledCard";
+import details from "./CallDetails.module.scss";
+import { CallStatus } from "./CallTable";
 import styles from "./CallDetailsPage.module.scss";
 import { ScrollableContent } from "../../shared/virtual/ScrollableContent";
 
@@ -26,14 +27,17 @@ export function CallDetailsPage() {
   }, [callId]);
 
   const content = error
-    ? <TitledCard title={t("无法加载调用详情")}><div style={{ padding: 16 }}>{error}</div></TitledCard>
+    ? <p className={details.notice} role="alert">{t("无法加载调用详情")}：{error}</p>
     : detail
       ? <CallDetails detail={detail} />
-      : <TitledCard title={t("调用详情")}><div style={{ padding: 16 }}>{t("正在加载调用详情…")}</div></TitledCard>;
+      : <p className={details.notice}>{t("正在加载调用详情…")}</p>;
 
   return <main className={styles.root}>
     <ScrollableContent className={styles.scroller} contentClassName={styles.content}>
-      <h1>{detail?.call.display_name ?? t("调用详情")}</h1>
+      <header className={styles.header}>
+        <h1>{detail?.call.display_name ?? t("调用详情")}</h1>
+        {detail && <CallStatus status={detail.call.status} />}
+      </header>
       {content}
     </ScrollableContent>
   </main>;

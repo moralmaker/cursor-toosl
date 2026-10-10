@@ -8,5 +8,7 @@
   font-size: type.$font-size-xs;
 }
 
-.completed { color: #56b870; }
-.failed { color: var(--vscode-errorForeground, #f48771); }
+.running { color: var(--vscode-textLink-foreground); }
+.completed { color: var(--vscode-textLink-foreground); }
+.error, .failed { color: var(--vscode-errorForeground); }
+.cancelled { color: var(--vscode-descriptionForeground); }

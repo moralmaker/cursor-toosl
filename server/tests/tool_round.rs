@@ -851,6 +851,7 @@ async fn one_run_can_auto_compact_again_after_more_tool_output() {
             anthropic_max_tokens: None,
             anthropic_thinking_effort: None,
             thinking_budget_tokens: None,
+            custom_price: None,
         })
         .await
         .unwrap();

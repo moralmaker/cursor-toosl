@@ -17,9 +17,10 @@ import { appStore } from "../../shared/store/appStore";
 import { Button } from "../../shared/ui/Button";
 import { Card } from "../../shared/ui/Card";
 import { ConfirmDialog } from "../../shared/ui/ConfirmDialog";
-import { FormField, TextInput } from "../../shared/ui/FormControls";
-import { Modal } from "../../shared/ui/Modal";
+import controls from "../../shared/ui/Controls.module.scss";
+import { TextInput } from "../../shared/ui/FormControls";
 import { Switch } from "../../shared/ui/Switch";
+import { ContentPanel } from "../../shell/ContentPanel";
 import styles from "./PluginResourcePanels.module.scss";
 
 const PAGE_SIZE = 10;
@@ -226,10 +227,10 @@ export function PluginSettingsPanel({ plugin }: { plugin: PluginDescriptor }) {
       })}
     />)}
     {error && <span className={styles.error} role="alert">{error}</span>}
-    {modelProvider && <ModelManagementModal
+    {modelProvider && <ModelManagementPanel
       provider={modelProvider}
       busy={busy !== null}
-      onClose={() => setModelProviderId(null)}
+      onClose={() => { if (busy === null) setModelProviderId(null); }}
       onSubmit={(enabledByModel) => void run("models", async () => {
         for (const model of modelProvider.models) {
           const enabled = enabledByModel[model.id] ?? model.enabled;
@@ -237,7 +238,7 @@ export function PluginSettingsPanel({ plugin }: { plugin: PluginDescriptor }) {
         }
       })}
     />}
-    {resourceAction && <ResourceActionModal
+    {resourceAction && <ResourceActionPanel
       action={resourceAction.resource.actions.find((item) => item.target === "resource") ?? null}
       cardAction={resourceAction.resource.actions.find((item) => item.target === "card") ?? null}
       result={resourceActionResult}
@@ -277,7 +278,7 @@ function ProviderRow({ provider, busy, syncing, onManageModels, onSync }: {
   </Card>;
 }
 
-function ModelManagementModal({ provider, busy, onClose, onSubmit }: {
+function ModelManagementPanel({ provider, busy, onClose, onSubmit }: {
   provider: PluginProviderDescriptor;
   busy: boolean;
   onClose: () => void;
@@ -294,14 +295,14 @@ function ModelManagementModal({ provider, busy, onClose, onSubmit }: {
     setEnabledByModel(Object.fromEntries(provider.models.map((model) => [model.id, enabled])));
   };
 
-  return <Modal
-    fullHeight
+  return <ContentPanel
     open
     title={t("{name} 模型管理", { name: pluginText(provider.displayName, locale) })}
-    busy={busy}
     onClose={onClose}
-    onSubmit={() => onSubmit(enabledByModel)}
-    submitLabel={t("确定")}
+    footer={<>
+      <button type="button" className={controls.secondary} disabled={busy} onClick={onClose}>{t("取消")}</button>
+      <button type="button" className={controls.primary} disabled={busy} onClick={() => onSubmit(enabledByModel)}>{busy ? t("处理中…") : t("确定")}</button>
+    </>}
   >
     <div className={styles.modelToolbar}>
       <Button size="small" disabled={busy || provider.models.length === 0} onClick={() => setAll(true)}>{t("全选")}</Button>
@@ -327,7 +328,7 @@ function ModelManagementModal({ provider, busy, onClose, onSubmit }: {
       </table>
       {provider.models.length === 0 && <span className={styles.empty}>{t("尚未同步模型")}</span>}
     </div>
-  </Modal>;
+  </ContentPanel>;
 }
 
 function ResourceList({ resource, busy, onAction, onRefresh, onDelete }: {
@@ -349,8 +350,9 @@ function ResourceList({ resource, busy, onAction, onRefresh, onDelete }: {
 
   useEffect(() => setPage(1), [query]);
 
-  return <FormField label={pluginText(resource.displayName, locale)}>
-    <div className={styles.resourceSection}>
+  return <section className={styles.resourceSection}>
+    <strong className={styles.sectionTitle}>{pluginText(resource.displayName, locale)}</strong>
+    <div>
       {resource.resources.length > PAGE_SIZE && <div className={styles.toolbar}>
         <TextInput aria-label={t("搜索资源")} placeholder={t("搜索资源")} value={query} onChange={(event) => setQuery(event.target.value)} />
       </div>}
@@ -373,7 +375,7 @@ function ResourceList({ resource, busy, onAction, onRefresh, onDelete }: {
         <Button size="small" disabled={page >= pageCount} onClick={() => setPage((current) => current + 1)}>{t("下一页")}</Button>
       </div>}
     </div>
-  </FormField>;
+  </section>;
 }
 
 function ResourceRow({ item, actions, canRefresh, disabled, onAction, onRefresh, onDelete }: {
@@ -405,7 +407,7 @@ function ResourceRow({ item, actions, canRefresh, disabled, onAction, onRefresh,
   </Card>;
 }
 
-function ResourceActionModal({ action, cardAction, result, busy, error, onClose, onCardAction }: {
+function ResourceActionPanel({ action, cardAction, result, busy, error, onClose, onCardAction }: {
   action: PluginResourceAction | null;
   cardAction: PluginResourceAction | null;
   result: PluginResourceActionResult | null;
@@ -420,7 +422,7 @@ function ResourceActionModal({ action, cardAction, result, busy, error, onClose,
   const cardActions = cardAction ? [cardAction] : [];
 
   return <>
-    <Modal compact open title={title} busy={busy} onClose={onClose} submitLabel={t("关闭")} onSubmit={onClose}>
+    <ContentPanel open variant="drawer" title={title} onClose={() => { if (!busy) onClose(); }} footer={<button type="button" className={controls.secondary} disabled={busy} onClick={onClose}>{t("关闭")}</button>}>
       <div className={styles.actionBody}>
         {result?.description && <span className={styles.actionDescription}>{pluginText(result.description, locale)}</span>}
         {busy && <span className={styles.empty}>{t("正在加载…")}</span>}
@@ -446,7 +448,7 @@ function ResourceActionModal({ action, cardAction, result, busy, error, onClose,
         </Card>)}
       </div>}
       </div>
-    </Modal>
+    </ContentPanel>
     {pendingCard && cardAction && <ConfirmDialog
       open
       title={t("使用重置卡")}

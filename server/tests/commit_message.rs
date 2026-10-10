@@ -63,6 +63,7 @@ fn model_input(model_id: &str) -> ModelConfigInput {
         anthropic_max_tokens: None,
         anthropic_thinking_effort: None,
         thinking_budget_tokens: None,
+        custom_price: None,
     }
 }
 

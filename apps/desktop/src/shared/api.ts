@@ -27,8 +27,25 @@ export interface Model {
   anthropic_max_tokens: number | null;
   anthropic_thinking_effort: string | null;
   thinking_budget_tokens: number | null;
+  custom_price: ModelTokenPrice | null;
+  price_source: PriceSource;
+  price: ModelTokenPrice | null;
   created_at_ms: number;
   updated_at_ms: number;
+}
+
+export interface ModelTokenPrice {
+  input_cost_per_million: number;
+  output_cost_per_million: number;
+  cache_read_cost_per_million: number;
+  cache_write_cost_per_million: number;
+}
+
+export type PriceSource = "official" | "custom" | "unpriced";
+
+export interface OfficialModelPrice {
+  model_id: string;
+  price: ModelTokenPrice;
 }
 
 export interface ModelInput {
@@ -54,6 +71,7 @@ export interface ModelInput {
   anthropic_max_tokens: number | null;
   anthropic_thinking_effort: string | null;
   thinking_budget_tokens: number | null;
+  custom_price: ModelTokenPrice | null;
 }
 
 export interface ModelDiscoveryInput {
@@ -346,6 +364,8 @@ export interface OverviewMetrics {
   cache_read_tokens: number;
   cache_write_tokens: number;
   output_tokens: number;
+  estimated_cost_usd: number;
+  unpriced_tokens: number;
 }
 
 export type TokenUsageGranularity = "minute" | "hour" | "day";
@@ -356,6 +376,9 @@ export interface OverviewTokenUsageBucket {
   cache_read_tokens: number;
   cache_write_tokens: number;
   output_tokens: number;
+  llm_calls: number;
+  estimated_cost_usd: number;
+  unpriced_tokens: number;
 }
 
 export interface Overview {
@@ -507,6 +530,7 @@ export const api = {
   },
   dismissAd: (id: string, reason: string) => request<void>(`/promotions/${encodeURIComponent(id)}/dismissals`, { method: "POST", body: JSON.stringify({ reason }) }),
   models: () => request<Model[]>("/models"),
+  modelPrices: () => request<OfficialModelPrice[]>("/models/prices"),
   createModels: (models: ModelInput[]) => request<Model[]>("/models", { method: "POST", body: JSON.stringify({ models }) }),
   reorderModels: (modelHashes: string[]) => request<Model[]>("/models/order", { method: "PUT", body: JSON.stringify({ model_hashes: modelHashes }) }),
   discoverModels: (input: ModelDiscoveryInput) => request<{ models: string[] }>("/models/discover", { method: "POST", body: JSON.stringify(input) }),

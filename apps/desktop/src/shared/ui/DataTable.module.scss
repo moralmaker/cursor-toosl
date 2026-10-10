@@ -88,6 +88,20 @@
   tbody tr:hover td {
     background: var(--vscode-list-hoverBackground);
   }
+
+  tbody tr[data-tone="fail"] td,
+  tbody tr[data-tone="fail"] .stickyRight {
+    background: color-mix(in srgb, var(--vscode-errorForeground) 14%, var(--vscode-editorWidget-background));
+  }
+
+  tbody tr[data-tone="fail"]:hover td,
+  tbody tr[data-tone="fail"]:hover .stickyRight {
+    background: color-mix(in srgb, var(--vscode-errorForeground) 20%, var(--vscode-list-hoverBackground));
+  }
+}
+
+.clickable {
+  cursor: pointer;
 }
 
 .stickyRight {

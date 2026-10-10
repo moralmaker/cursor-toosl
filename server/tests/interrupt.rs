@@ -1105,6 +1105,7 @@ async fn injected_user_context_interrupts_automatic_compaction() {
             anthropic_max_tokens: None,
             anthropic_thinking_effort: None,
             thinking_budget_tokens: None,
+            custom_price: None,
         })
         .await
         .unwrap();

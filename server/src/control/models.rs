@@ -7,7 +7,7 @@ use axum::{
 use serde::Deserialize;
 
 use crate::{
-    model::{ModelConfig, ModelConfigInput},
+    model::{official_prices, ModelConfig, ModelConfigInput, ModelTokenPrice},
     Result,
 };
 
@@ -21,9 +21,26 @@ pub struct SaveModels {
     pub models: Vec<ModelConfigInput>,
 }
 
+#[derive(serde::Serialize)]
+pub struct OfficialModelPrice {
+    pub model_id: &'static str,
+    pub price: ModelTokenPrice,
+}
+
 #[derive(Deserialize)]
 pub struct ModelOrder {
     pub model_hashes: Vec<String>,
+}
+
+pub async fn prices() -> Json<Vec<OfficialModelPrice>> {
+    Json(
+        official_prices()
+            .map(|(model_id, price)| OfficialModelPrice {
+                model_id,
+                price: ModelTokenPrice::from(price),
+            })
+            .collect(),
+    )
 }
 
 pub async fn list(State(service): State<ControlService>) -> Result<Json<Vec<ModelConfig>>> {

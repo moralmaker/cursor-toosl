@@ -1,17 +1,23 @@
 import { useEffect, useState } from "react";
 import { api, type ProxySettings, type ProxySettingsInput, type StatisticsStorage, type StatisticsStorageScope, type TabSettings } from "../../shared/api";
 import { PageContent } from "../../shell/layout/PageContent";
+import { PageActions } from "../../shell/PageActions";
+import { Icon } from "../../shared/ui/Icon";
+import { solarNav } from "../../shared/ui/solarNav";
 import { LegacyModelImport } from "../models/LegacyModelImport";
+import { AboutSettingsCard } from "./AboutSettingsCard";
 import { AppLifecycleSettingsCard } from "./AppLifecycleSettingsCard";
 import { CommitSettingsCard } from "./CommitSettingsCard";
 import { ProxySettingsCard } from "./ProxySettingsCard";
 import { TabSettingsCard } from "./TabSettingsCard";
 import { Button } from "../../shared/ui/Button";
-import { Checkbox } from "../../shared/ui/Checkbox";
 import { ConfirmDialog } from "../../shared/ui/ConfirmDialog";
-import { FormField, TextInput } from "../../shared/ui/FormControls";
+import { TextInput } from "../../shared/ui/FormControls";
 import { Select } from "../../shared/ui/Select";
-import { TitledCard } from "../../shared/ui/TitledCard";
+import { Switch } from "../../shared/ui/Switch";
+import { SettingRow, SettingsGroup } from "./SettingsGroup";
+import { ShortcutSettingsCard } from "./ShortcutSettingsCard";
+import groupStyles from "./SettingsGroup.module.scss";
 import { setLocalePreference, useI18n, type LocalePreference } from "../../i18n/store";
 import { useMessage } from "../../shared/ui/message";
 import { appStore, useAppStore } from "../../shared/store/appStore";
@@ -38,6 +44,8 @@ export function SettingsPage() {
   const [tabDraft, setTabDraft] = useState<TabSettings>({ mode: "public", address: "" });
   const [editingTab, setEditingTab] = useState(false);
   const [savingTab, setSavingTab] = useState(false);
+  const [section, setSection] = useState<SettingsSection>("general");
+  const [query, setQuery] = useState("");
   useEffect(() => {
     void Promise.all([api.statisticsStorage(), api.proxySettings(), api.tabSettings()]).then(([nextStorage, nextProxy, nextTab]) => {
       setStorage(nextStorage);
@@ -160,96 +168,76 @@ export function SettingsPage() {
   const clearDescription = clearScope === "all"
     ? t("所有调用汇总、详细内容和追踪记录都会被删除。模型配置、CA 和应用设置不会受到影响，此操作无法撤销。")
     : t("仅删除请求、响应和追踪附件等详细内容，保留调用汇总、统计指标和配置。");
+  const groups: Array<{ id: SettingsSection; label: string; text: string }> = [
+    { id: "general", label: t("通用"), text: [t("通用"), t("界面语言"), t("主题"), t("默认暗色"), t("默认亮色"), t("跟随系统")].join(" ") },
+    { id: "observe", label: t("调用观测"), text: [t("调用观测"), t("详细模式")].join(" ") },
+    { id: "network", label: t("网络"), text: [t("网络"), t("端口设置"), t("代理端口"), t("服务端口"), t("代理")].join(" ") },
+    { id: "tab", label: "TAB", text: "TAB" },
+    { id: "commit", label: "Commit", text: "Commit" },
+    { id: "app", label: t("应用"), text: [t("应用"), t("开机启动"), t("静默启动"), "Dock"].join(" ") },
+    { id: "shortcuts", label: t("快捷键"), text: [t("快捷键"), t("收起侧栏"), t("命令面板"), t("恢复默认设置")].join(" ") },
+    { id: "data", label: t("数据"), text: [t("数据"), t("导入"), t("旧版配置"), t("存储管理"), t("清理存储空间")].join(" ") },
+    { id: "about", label: t("关于"), text: [t("关于"), t("版本"), t("检查更新"), t("官网"), t("更新日志"), "GitHub"].join(" ") },
+  ];
+  const needle = query.trim().toLowerCase();
+  const visibleGroups = groups.filter((group) => !needle || group.text.toLowerCase().includes(needle));
+  const shown = visibleGroups.some((group) => group.id === section) ? section : null;
+  useEffect(() => {
+    if (visibleGroups.length > 0 && !visibleGroups.some((group) => group.id === section)) setSection(visibleGroups[0].id);
+  }, [needle]);
   const content = (
     <div className={styles.page}>
-      <TitledCard title={t("调用观测")}>
-        <div className={styles.settingRow}>
-          <div>
-            <strong>{t("详细模式")}</strong>
-            <small>
-              {t("额外保存完整请求和流响应；默认只保存时间、状态与用量。")}
-            </small>
+      <nav className={styles.sections} aria-label={t("设置")}>
+        {visibleGroups.map((group) => (
+          <button key={group.id} type="button" className={section === group.id ? styles.sectionOn : ""} aria-current={section === group.id ? "true" : undefined} onClick={() => setSection(group.id)}>{group.label}</button>
+        ))}
+      </nav>
+      <div className={styles.content}>
+      {visibleGroups.length === 0 && <div className={styles.empty}>{t("没有匹配的设置")}</div>}
+      {shown === "observe" && <SettingsGroup title={t("调用观测")}>
+        <SettingRow title={t("详细模式")} description={t("额外保存完整请求和流响应；默认只保存时间、状态与用量。")}>
+          <Switch label={t("详细模式")} checked={detailed} onChange={(checked) => void appStore.updateDetailed(checked)} />
+        </SettingRow>
+      </SettingsGroup>}
+      {shown === "network" && <>
+        <SettingsGroup title={t("端口设置")} action={editingPorts ? (
+          <div className={groupStyles.actions}>
+            <Button size="small" disabled={savingPorts} onClick={cancelPortEdit}>{t("取消")}</Button>
+            <Button variant="primary" size="small" disabled={savingPorts} onClick={() => void savePorts()}>{savingPorts ? t("保存中…") : t("保存")}</Button>
           </div>
-          <Checkbox
-            label={t("详细模式")}
-            checked={detailed}
-            onChange={(checked) => void appStore.updateDetailed(checked)}
-          />
-        </div>
-      </TitledCard>
-      <TitledCard title={t("端口设置")} action={editingPorts ? (
-        <div className={styles.cardActions}>
-          <Button size="small" disabled={savingPorts} onClick={cancelPortEdit}>{t("取消")}</Button>
-          <Button variant="primary" size="small" disabled={savingPorts} onClick={() => void savePorts()}>{savingPorts ? t("保存中…") : t("保存")}</Button>
-        </div>
-      ) : (
-        <button type="button" className={styles.textButton} onClick={editPorts}>{t("编辑")}</button>
-      )}>
-        <div className={styles.portSettings}>
-          <div className={styles.portFields}>
-            {editingPorts ? <><FormField
-              label={t("代理端口")}
-              hint={t("Cursor 使用的本地代理端口；填写 0 时启动时随机选择。")}
-            >
-              <TextInput
-                type="number"
-                min={0}
-                max={65535}
-                step={1}
-                value={proxyPort}
-                onChange={(event) => setProxyPort(event.target.value)}
-              />
-            </FormField>
-            <FormField
-              label={t("服务端口")}
-              hint={t(
-                "桌面前端连接的本地管理服务端口；填写 0 时启动时随机选择。",
-              )}
-            >
-              <TextInput
-                type="number"
-                min={0}
-                max={65535}
-                step={1}
-                value={servicePort}
-                onChange={(event) => setServicePort(event.target.value)}
-              />
-            </FormField></> : <>
-              <div className={styles.portValue}><strong>{t("代理端口")}</strong><span>{ports.proxy_port}</span></div>
-              <div className={styles.portValue}><strong>{t("服务端口")}</strong><span>{ports.service_port}</span></div>
-            </>}
-          </div>
-          <div className={styles.portFooter}>
-            <small>
-              {t(
-                "端口被占用时会自动选择新的随机端口并保存。修改后需要重启软件才会生效。",
-              )}
-            </small>
-          </div>
-        </div>
-      </TitledCard>
-      <ProxySettingsCard settings={outboundProxy} draft={proxyDraft} editing={editingProxy} saving={savingProxy} onDraftChange={setProxyDraft} onEdit={editProxy} onCancel={cancelProxyEdit} onSave={() => void saveProxy()} />
-      <TabSettingsCard settings={tabSettings} draft={tabDraft} editing={editingTab} saving={savingTab} onDraftChange={setTabDraft} onEdit={editTab} onCancel={cancelTabEdit} onSave={() => void saveTab()} />
-      <CommitSettingsCard />
-      <AppLifecycleSettingsCard />
-      <LegacyModelImport>{({ busy, previewing, open }) => <TitledCard title={t("导入")}>
-        <div className={styles.importRow}>
-          <div>
-            <strong>{t("旧版配置")}</strong>
-            <small>{t("从本机旧版配置读取模型；确认前会显示新增和已存在的模型。")}</small>
-          </div>
+        ) : (
+          <button type="button" className={groupStyles.textButton} onClick={editPorts}>{t("编辑")}</button>
+        )}>
+          <SettingRow title={t("代理端口")} description={t("Cursor 使用的本地代理端口；填写 0 时启动时随机选择。")}>
+            {editingPorts
+              ? <div className={groupStyles.field}><TextInput type="number" min={0} max={65535} step={1} value={proxyPort} aria-label={t("代理端口")} onChange={(event) => setProxyPort(event.target.value)} /></div>
+              : <span className={styles.mono}>{ports.proxy_port}</span>}
+          </SettingRow>
+          <SettingRow title={t("服务端口")} description={`${t("桌面前端连接的本地管理服务端口；填写 0 时启动时随机选择。")}${t("端口被占用时会自动选择新的随机端口并保存。修改后需要重启软件才会生效。")}`}>
+            {editingPorts
+              ? <div className={groupStyles.field}><TextInput type="number" min={0} max={65535} step={1} value={servicePort} aria-label={t("服务端口")} onChange={(event) => setServicePort(event.target.value)} /></div>
+              : <span className={styles.mono}>{ports.service_port}</span>}
+          </SettingRow>
+        </SettingsGroup>
+        <ProxySettingsCard settings={outboundProxy} draft={proxyDraft} editing={editingProxy} saving={savingProxy} onDraftChange={setProxyDraft} onEdit={editProxy} onCancel={cancelProxyEdit} onSave={() => void saveProxy()} />
+      </>}
+      {shown === "tab" && <TabSettingsCard settings={tabSettings} draft={tabDraft} editing={editingTab} saving={savingTab} onDraftChange={setTabDraft} onEdit={editTab} onCancel={cancelTabEdit} onSave={() => void saveTab()} />}
+      {shown === "commit" && <CommitSettingsCard />}
+      {shown === "app" && <AppLifecycleSettingsCard />}
+      {shown === "shortcuts" && <ShortcutSettingsCard />}
+      {shown === "data" && <LegacyModelImport>{({ busy, previewing, open }) => <SettingsGroup title={t("数据")}>
+        <SettingRow title={t("旧版配置")} description={t("从本机旧版配置读取模型；确认前会显示新增和已存在的模型。")}>
           <Button size="small" disabled={busy} onClick={open}>
             {previewing ? t("读取中…") : t("查看并导入")}
           </Button>
-        </div>
-      </TitledCard>}</LegacyModelImport>
-      <TitledCard title={t("语言")}>
-        <div className={styles.settingRow}>
-          <div>
-            <strong>{t("界面语言")}</strong>
-            <small>{t("默认跟随操作系统；不支持的系统语言使用英文。当前：{language}", { language: locale === "zh-CN" ? "简体中文" : "English" })}</small>
-          </div>
-          <div className={styles.languageControl}>
+        </SettingRow>
+        <SettingRow title={t("统计数据")} description={storage ? formatBytes(storage.bytes) : t("计算中…")}>
+          <Button size="small" className={styles.danger} onClick={() => { setClearScope("details"); setConfirmClear(true); }}>{t("清理存储空间")}</Button>
+        </SettingRow>
+      </SettingsGroup>}</LegacyModelImport>}
+      {shown === "general" && <SettingsGroup title={t("通用")}>
+        <SettingRow title={t("界面语言")} description={t("默认跟随操作系统；不支持的系统语言使用英文。当前：{language}", { language: locale === "zh-CN" ? "简体中文" : "English" })}>
+          <div className={groupStyles.field}>
             <Select
               value={preference}
               ariaLabel={t("界面语言")}
@@ -261,36 +249,24 @@ export function SettingsPage() {
               onChange={(value) => setLocalePreference(value as LocalePreference)}
             />
           </div>
-        </div>
-      </TitledCard>
-      <TitledCard title={t("主题")}>
-        <div className={styles.themeActions}>
-          {themeOptions.map(({ id }) => (
-            <button
-              className={theme === id ? styles.selected : ""}
-              key={id}
-              onClick={() => appStore.selectTheme(id)}
-            >
-              {id === "default-dark" ? t("默认暗色") : t("默认亮色")}
-            </button>
-          ))}
-        </div>
-      </TitledCard>
-      <TitledCard title={t("存储管理")}>
-        <div className={styles.storageRow}>
-          <div>
-            <strong>{t("统计数据")}</strong>
-            <small>{storage ? formatBytes(storage.bytes) : t("计算中…")}</small>
+        </SettingRow>
+        <SettingRow title={t("主题")} description={t("默认暗色或默认亮色，选择后立即生效。")}>
+          <div className={styles.segment} role="group" aria-label={t("主题")}>
+            {themeOptions.map(({ id }) => (
+              <button
+                type="button"
+                className={theme === id ? styles.segmentOn : ""}
+                key={id}
+                aria-pressed={theme === id}
+                onClick={() => appStore.selectTheme(id)}
+              >
+                {id === "default-dark" ? t("默认暗色") : t("默认亮色")}
+              </button>
+            ))}
           </div>
-          <button
-            type="button"
-            className={styles.textButton}
-            onClick={() => { setClearScope("details"); setConfirmClear(true); }}
-          >
-            {t("清理存储空间")}
-          </button>
-        </div>
-      </TitledCard>
+        </SettingRow>
+      </SettingsGroup>}
+      {shown === "about" && <AboutSettingsCard />}
       <ConfirmDialog
         open={confirmClear}
         title={clearTitle}
@@ -313,7 +289,18 @@ export function SettingsPage() {
           <small>{clearDescription}</small>
         </div>
       </ConfirmDialog>
+      </div>
     </div>
   );
-  return <PageContent title={t("设置")} sections={[{ key: "settings", estimatedHeight: 1200, content }]} />;
+  return <>
+    <PageActions>
+      <label className={styles.search}>
+        <Icon icon={solarNav["minimalistic-magnifer"].line} size="1em" />
+        <input value={query} placeholder={t("搜索设置")} aria-label={t("搜索设置")} onChange={(event) => setQuery(event.target.value)} />
+      </label>
+    </PageActions>
+    <PageContent title={t("设置")} sections={[{ key: "settings", estimatedHeight: 1200, content }]} />
+  </>;
 }
+
+type SettingsSection = "general" | "observe" | "network" | "tab" | "commit" | "app" | "shortcuts" | "data" | "about";

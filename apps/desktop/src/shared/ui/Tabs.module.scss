@@ -5,37 +5,30 @@
 }
 
 .list {
-  display: flex;
-  gap: 4px;
-  border-bottom: 1px solid var(--vscode-sideBar-border);
+  display: inline-flex;
+  max-width: 100%;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--vscode-sideBar-border);
+  border-radius: 8px;
+  background: var(--vscode-input-background);
 }
 
 .tab {
-  position: relative;
-  min-height: 32px;
+  min-height: 26px;
   padding: 0 10px;
   color: var(--vscode-descriptionForeground);
-  font-size: type.$font-size-base;
+  font-size: type.$font-size-xs;
   background: transparent;
   border: 0;
+  border-radius: 6px;
 
-  &:hover {
-    color: var(--vscode-foreground);
-    background: var(--vscode-list-hoverBackground);
-  }
+  &:hover { color: var(--vscode-foreground); }
 
   &[aria-selected="true"] {
-    color: var(--vscode-foreground);
-
-    &::after {
-      position: absolute;
-      right: 8px;
-      bottom: -1px;
-      left: 8px;
-      height: 2px;
-      content: "";
-      background: var(--vscode-focusBorder);
-    }
+    color: var(--vscode-button-foreground);
+    background: var(--vscode-button-background);
   }
 }
 

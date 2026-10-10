@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cursor TOOLS Desktop UI"
+  short_description: "Deep Space visual system for desktop page design"
+  default_prompt: "Use $desktop-ui to design or implement a Cursor TOOLS desktop page in the Deep Space system."

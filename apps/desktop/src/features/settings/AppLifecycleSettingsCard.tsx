@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  currentAppVersion,
   hasDockVisibilitySetting,
   hasNativeAppLifecycle,
   readAutostart,
@@ -9,20 +8,14 @@ import {
   writeDockIconVisibility,
   writeSilentStart,
 } from "../../shared/native/appLifecycle";
-import { formatUpdateProgress, updateStore, useUpdateStore } from "../../shared/store/updateStore";
-import { Button } from "../../shared/ui/Button";
 import { Switch } from "../../shared/ui/Switch";
-import { TitledCard } from "../../shared/ui/TitledCard";
 import { useMessage } from "../../shared/ui/message";
-import styles from "./AppLifecycleSettingsCard.module.scss";
+import { SettingRow, SettingsGroup } from "./SettingsGroup";
 
 export function AppLifecycleSettingsCard() {
   const message = useMessage();
   const native = hasNativeAppLifecycle();
   const dockVisibilitySetting = hasDockVisibilitySetting();
-  const { availableVersion, checking, installing, installProgress } = useUpdateStore();
-  const progressLabel = formatUpdateProgress(installProgress);
-  const [version, setVersion] = useState("…");
   const [autostart, setAutostart] = useState(false);
   const [loadingAutostart, setLoadingAutostart] = useState(native);
   const [silentStart, setSilentStart] = useState(false);
@@ -31,7 +24,6 @@ export function AppLifecycleSettingsCard() {
 
   useEffect(() => {
     let disposed = false;
-    void currentAppVersion().then((next) => { if (!disposed) setVersion(next); });
     if (native) {
       void readAutostart()
         .then((enabled) => { if (!disposed) setAutostart(enabled); })
@@ -91,83 +83,30 @@ export function AppLifecycleSettingsCard() {
     }
   };
 
-  const checkUpdate = async () => {
-    try {
-      const nextVersion = await updateStore.check();
-      message(nextVersion ? t("发现新版本 {version}", { version: nextVersion }) : t("当前已是最新版本"));
-    } catch (cause) {
-      const error = cause instanceof Error ? cause.message : String(cause);
-      message(t("检查更新失败：{error}", { error }));
-    }
-  };
-
-  const updateNow = async () => {
-    try {
-      await updateStore.install();
-    } catch (cause) {
-      const error = cause instanceof Error ? cause.message : String(cause);
-      message(t("安装更新失败：{error}", { error }));
-    }
-  };
-
-  return <TitledCard title={t("应用设置")}>
-    <div className={styles.row}>
-      <div>
-        <strong>{t("开机启动")}</strong>
-        <small>{t("登录系统后自动启动 Cursor TOOLS。")}</small>
-      </div>
+  return <SettingsGroup title={t("应用设置")}>
+    <SettingRow title={t("开机启动")} description={t("登录系统后自动启动 Cursor TOOLS。")}>
       <Switch
         checked={autostart}
         disabled={!native || loadingAutostart}
         label={t("开机启动")}
         onChange={(enabled) => void toggleAutostart(enabled)}
       />
-    </div>
-    {autostart && <div className={styles.row}>
-      <div>
-        <strong>{t("静默启动")}</strong>
-        <small>{t("开机启动时不显示主窗口，仅保留系统托盘图标。")}</small>
-      </div>
+    </SettingRow>
+    {autostart && <SettingRow title={t("静默启动")} description={t("开机启动时不显示主窗口，仅保留系统托盘图标。")}>
       <Switch
         checked={silentStart}
         disabled={!native || loadingDesktopSettings}
         label={t("静默启动")}
         onChange={(enabled) => void toggleSilentStart(enabled)}
       />
-    </div>}
-    {dockVisibilitySetting && <div className={styles.row}>
-      <div>
-        <strong>{t("在 Dock 栏显示")}</strong>
-        <small>{t("关闭后隐藏 Dock 栏图标，仍可通过菜单栏图标打开应用。")}</small>
-      </div>
+    </SettingRow>}
+    {dockVisibilitySetting && <SettingRow title={t("在 Dock 栏显示")} description={t("关闭后隐藏 Dock 栏图标，仍可通过菜单栏图标打开应用。")}>
       <Switch
         checked={dockIconVisible}
         disabled={loadingDesktopSettings}
         label={t("在 Dock 栏显示")}
         onChange={(visible) => void toggleDockIcon(visible)}
       />
-    </div>}
-    <div className={styles.row}>
-      <div>
-        <strong>{t("软件更新")}</strong>
-        <small>{availableVersion
-          ? t("版本 {version} 可以安装", { version: availableVersion })
-          : t("当前版本 {version}", { version })}</small>
-      </div>
-      {availableVersion
-        ? <Button size="small" variant="primary" disabled={installing} onClick={() => void updateNow()}>
-            {installing
-              ? installProgress?.phase === "install"
-                ? t("正在安装…")
-                : progressLabel
-                  ? t("下载中 {progress}", { progress: progressLabel })
-                  : t("下载中…")
-              : t("下载并安装")}
-            <span className={styles.updateDot} aria-hidden="true" />
-          </Button>
-        : <Button size="small" disabled={!native || checking} onClick={() => void checkUpdate()}>
-            {checking ? t("检查中…") : t("检查更新")}
-          </Button>}
-    </div>
-  </TitledCard>;
+    </SettingRow>}
+  </SettingsGroup>;
 }

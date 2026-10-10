@@ -9,7 +9,7 @@
 | [external-apis.md](./external-apis.md) | 出站广告、TAB、模型通道、更新清单等外部接口契约 |
 | [ops/README.md](../ops/README.md) | Cloudflare Worker：广告、更新清单、下载页、管理台部署细节 |
 
-当前桌面版本以清单为准（现为 **1.0.1**）。
+当前桌面版本以清单为准（现为 **1.1.0**）。
 
 | 仓库 | 可见性 | 用途 |
 | --- | --- | --- |
@@ -207,7 +207,7 @@ tauri.conf.json == package.json == Cargo.toml == 标签名去掉 v
 
 | 类型 | 清单里的 version | 标签 | 说明 |
 | --- | --- | --- | --- |
-| 正式版 | `1.0.1` | `v1.0.1` | 标题 `Cursor TOOLS v1.0.1` |
+| 正式版 | `1.1.0` | `v1.1.0` | 标题 `Cursor TOOLS v1.1.0`。深空界面、按模型计价、概览热力图与自定义时间 |
 | 测试版 | `1.0.2-beta.1` | `v1.0.2-beta.1` | 仍是普通 Latest Release；正文带 Beta |
 
 Windows 测试版必须走 NSIS（工作流已写死 `--bundles nsis`）。不要用 WiX/MSI 打带 `beta.1` 的版本，MSI 不接受非数字预发布号。

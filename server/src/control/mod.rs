@@ -125,6 +125,7 @@ pub fn api_router(service: ControlService) -> Router {
             get(models::list).post(models::create),
         )
         .route("/__tools-api__/api/models/discover", post(models::discover))
+        .route("/__tools-api__/api/models/prices", get(models::prices))
         .route(
             "/__tools-api__/api/models/import-v0049",
             get(models::preview_v0049).post(models::import_v0049),

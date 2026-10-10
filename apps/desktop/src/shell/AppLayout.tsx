@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { IconifyIcon } from "@iconify/react/offline";
+import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import KeepAliveRouteOutlet from "keepalive-for-react-router";
-import { NavLink, useLocation } from "react-router-dom";
-import cursorIconUrl from "../shared/assets/icons/cursor.svg";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../shared/api";
+import { CommandPalette } from "./CommandPalette";
+import { ContentOverlayHost, peekLeaveDiscard } from "./contentOverlay";
 import { AdMenu } from "./ads/AdMenu";
 import { FloatingAd } from "./ads/FloatingAd";
 import { loadCachedAds, saveCachedAds } from "./ads/cache";
@@ -14,21 +14,26 @@ import { ConfirmDialog } from "../shared/ui/ConfirmDialog";
 import controls from "../shared/ui/Controls.module.scss";
 import { Icon } from "../shared/ui/Icon";
 import { TooltipTrigger } from "../shared/ui/TooltipTrigger";
-import { flatColorAreaChartIcon, flatColorCrystalOscillatorIcon, flatColorSalesPerformanceIcon, flatColorSettingsIcon, refreshIcon } from "../shared/ui/icons";
+import { refreshIcon } from "../shared/ui/icons";
+import { solarNav } from "../shared/ui/solarNav";
+import { desktopPlatform } from "../shared/native/platform";
+import { formatShortcut, getShortcuts, isShortcutRecording, shortcutMatches, useShortcuts, type ShortcutId } from "./shortcuts";
 import { useMessage } from "../shared/ui/message";
 import { VirtualList } from "../shared/virtual/VirtualList";
 import { useI18n } from "../i18n/store";
 import { appStore, useAppStore } from "../shared/store/appStore";
 import { useUpdateStore } from "../shared/store/updateStore";
+import logoUrl from "../../src-tauri/icons/128x128.png";
 import styles from "./AppLayout.module.scss";
 import { PageActionsTarget } from "./PageActions";
 
-type MenuItem =
-  | { kind: "page"; path: string; label: string; icon: IconifyIcon | string }
-  | { kind: "external"; id: string; label: string; icon: IconifyIcon | string }
-  | { kind: "group"; label: string };
+type MenuItem = { path: string; label: string; shortcutId: ShortcutId; icon: keyof typeof solarNav };
 
 const keptAlivePages = ["/", "/calls", "/settings", "/harness/cursor", "/plugins"];
+
+function withCollapsedTip(collapsed: boolean, label: string, node: ReactElement<{ "aria-describedby"?: string }>) {
+  return collapsed ? <TooltipTrigger label={label} placement="right">{node}</TooltipTrigger> : node;
+}
 const readAdStorageKey = "cursor-tools:read-ad-ids";
 const dismissedAdStorageKey = "cursor-tools:dismissed-ad-ids";
 const tutorialReadStorageKey = "cursor-tools:tutorial-read";
@@ -44,11 +49,21 @@ function loadStoredAdIds(key: string): Set<string> {
 }
 
 export function AppLayout() {
-  const { busy, cursorHarness } = useAppStore();
+  const { busy, cursorHarness, ports } = useAppStore();
   const { availableVersion } = useUpdateStore();
   const { locale } = useI18n();
+  const shortcuts = useShortcuts();
+  const macShortcuts = desktopPlatform() === "macos";
   const message = useMessage();
   const location = useLocation();
+  const navigate = useNavigate();
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem("cursor-tools.sidebar") === "collapsed"; } catch { return false; }
+  });
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [commandsOpen, setCommandsOpen] = useState(false);
+  const [pendingPath, setPendingPath] = useState<string | null>(null);
+  const [pageMotion, setPageMotion] = useState(false);
   const [leftActionTarget, setLeftActionTarget] = useState<HTMLDivElement | null>(null);
   const [rightActionTarget, setRightActionTarget] = useState<HTMLDivElement | null>(null);
   const [ads, setAds] = useState<AdSlot[]>(() => loadCachedAds());
@@ -56,13 +71,6 @@ export function AppLayout() {
   const [dismissCandidate, setDismissCandidate] = useState<AdSlot | null>(null);
   const [dismissReason, setDismissReason] = useState("");
   const [confirmTutorial, setConfirmTutorial] = useState(false);
-  const [tutorialRead, setTutorialRead] = useState(() => {
-    try {
-      return localStorage.getItem(tutorialReadStorageKey) === "true";
-    } catch {
-      return false;
-    }
-  });
   const [readAdIds, setReadAdIds] = useState(() => loadStoredAdIds(readAdStorageKey));
   const [dismissedAdIds, setDismissedAdIds] = useState(() => loadStoredAdIds(dismissedAdStorageKey));
   const dismissedAdIdsRef = useRef(dismissedAdIds);
@@ -71,29 +79,66 @@ export function AppLayout() {
   const closeAd = useCallback(() => setActiveAd(null), []);
   const visibleAds = ads.filter((ad) => ad.enabled && ad.placement === "menu" && !(adDismissible(ad) && dismissedAdIds.has(ad.id)));
   const menuItems: MenuItem[] = [
-    { kind: "page", path: "/", label: t("数据概览"), icon: flatColorAreaChartIcon },
-    { kind: "page", path: "/calls", label: t("调用详细"), icon: flatColorSalesPerformanceIcon },
-    { kind: "group", label: t("模型配置") },
-    { kind: "page", path: "/harness/cursor", label: "Cursor", icon: cursorIconUrl },
-    { kind: "group", label: t("设置") },
-    { kind: "page", path: "/plugins", label: t("插件配置"), icon: flatColorCrystalOscillatorIcon },
-    { kind: "page", path: "/settings", label: t("系统设置"), icon: flatColorSettingsIcon },
-    // { kind: "external", id: "tutorial", label: t("使用教程"), icon: flatColorAboutIcon },
+    { path: "/", label: t("概览"), shortcutId: "overview", icon: "chart-2" },
+    { path: "/calls", label: t("调用"), shortcutId: "calls", icon: "history-2" },
+    { path: "/harness/cursor", label: "Cursor", shortcutId: "cursor", icon: "cpu-bolt" },
+    { path: "/plugins", label: t("插件"), shortcutId: "plugins", icon: "widget-5" },
   ];
+  const settingsActive = location.pathname === "/settings";
+  const taken = Boolean(cursorHarness?.settings_applied);
+  const statusLabel = cursorHarness?.ca !== "ready"
+    ? t("未就绪")
+    : taken
+      ? t("已接管")
+      : t("未接管");
 
   const openTutorial = useCallback(() => {
     setConfirmTutorial(false);
     void api.openExternalUrl(tutorialUrl)
       .then(() => {
-        setTutorialRead(true);
-        try {
-          localStorage.setItem(tutorialReadStorageKey, "true");
-        } catch {
-          // Read state remains valid for the current session when storage is unavailable.
-        }
+        try { localStorage.setItem(tutorialReadStorageKey, "true"); } catch { /* preference is optional */ }
       })
       .catch((cause) => message(cause instanceof Error ? cause.message : String(cause)));
   }, [message]);
+
+  useEffect(() => {
+    document.documentElement.dataset.sidebar = collapsed ? "collapsed" : "expanded";
+    try { localStorage.setItem("cursor-tools.sidebar", collapsed ? "collapsed" : "expanded"); } catch { /* preference stays in memory */ }
+  }, [collapsed]);
+
+  useEffect(() => {
+    setPageMotion(true);
+    const timer = window.setTimeout(() => setPageMotion(false), 180);
+    return () => window.clearTimeout(timer);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (isShortcutRecording()) return;
+      const current = getShortcuts();
+      const routes: Array<[ShortcutId, string]> = [
+        ["overview", "/"],
+        ["calls", "/calls"],
+        ["cursor", "/harness/cursor"],
+        ["plugins", "/plugins"],
+        ["settings", "/settings"],
+      ];
+      const route = routes.find(([id]) => shortcutMatches(event, current[id]));
+      if (route) {
+        event.preventDefault();
+        if (peekLeaveDiscard()) setPendingPath(route[1]);
+        else navigate(route[1]);
+      } else if (shortcutMatches(event, current.sidebar)) {
+        event.preventDefault();
+        setCollapsed((value) => !value);
+      } else if (shortcutMatches(event, current.palette)) {
+        event.preventDefault();
+        setCommandsOpen((value) => !value);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [navigate]);
 
   useEffect(() => {
     let disposed = false;
@@ -187,47 +232,73 @@ export function AppLayout() {
 
   return <PageLayout className={styles.root}>
     <Card as="aside" className={styles.menuCard}>
-      <nav className={styles.navigation} aria-label={t("主菜单")}>
+      <nav className={styles.navigation} aria-label={t("主菜单")} data-collapsed={collapsed || undefined} onClickCapture={(event) => {
+        const link = (event.target as HTMLElement).closest("a");
+        if (!link || !peekLeaveDiscard()) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const hash = new URL(link.href).hash.replace(/^#/, "");
+        setPendingPath(hash || "/");
+      }}>
+        <div className={styles.brand}>
+          <img src={logoUrl} alt="" />
+          <span>Cursor Tools</span>
+        </div>
+        <button
+          type="button"
+          className={styles.capsule}
+          aria-expanded={statusOpen}
+          onClick={() => setStatusOpen((value) => !value)}
+        >
+          <i className={styles.statusDot} data-state={cursorHarness?.ca !== "ready" ? "bad" : taken ? "ok" : "warn"} />
+          <span>{statusLabel}</span>
+        </button>
+        {statusOpen && <div className={styles.statusPanel}>
+          <p>{t("证书状态")}：{cursorHarness?.ca === "ready" ? t("已信任") : t("未就绪")}</p>
+          <p>{cursorHarness?.proxy_url ?? `127.0.0.1:${ports.proxy_port}`}</p>
+          <button type="button" onClick={() => {
+            const value = cursorHarness?.proxy_url ?? `127.0.0.1:${ports.proxy_port}`;
+            void navigator.clipboard.writeText(value).then(() => message(t("已复制"))).catch(() => message(t("复制失败")));
+          }}>{t("复制代理地址")}</button>
+        </div>}
         <VirtualList
           items={menuItems}
-          itemKey={(item) => item.kind === "group" ? `group-${item.label}` : item.kind === "external" ? `external-${item.id}` : item.path}
+          itemKey={(item) => item.path}
           estimatedItemHeight={36}
           itemGap={3}
           className={`${styles.navigationList} scroll-shadow-bottom`}
         >
-          {(item) => item.kind === "group"
-          ? <div className={styles.navigationGroup} key={`group-${item.label}`}>{item.label}</div>
-          : item.kind === "external"
-          ? <div className={styles.navigationRow} key={item.id}>
-            <button
-              type="button"
-              aria-label={`${item.label}${tutorialRead ? "" : `，${t("未读")}`}`}
-              onClick={() => setConfirmTutorial(true)}
-            >
-              {typeof item.icon === "string"
-                ? <Icon src={item.icon} size="1.3em" />
-                : <Icon icon={item.icon} size="1.3em" />}
-              <span>{item.label}</span>
-              {!tutorialRead && <span className={styles.menuIndicatorDot} aria-hidden="true" />}
-            </button>
-          </div>
-          : <div className={styles.navigationRow} key={item.path}>
-            <NavLink to={item.path} end={item.path === "/"}>
-              {typeof item.icon === "string"
-                ? <Icon src={item.icon} size="1.3em" />
-                : <Icon icon={item.icon} size="1.3em" />}
-              <span>{item.label}</span>
-              {item.path === "/harness/cursor" && cursorHarness && <span
-                className={styles.menuStatusTag}
-                data-taken={cursorHarness.settings_applied || undefined}
-              >
-                {cursorHarness.settings_applied ? t("已接管") : t("未接管")}
-              </span>}
-              {item.path === "/settings" && availableVersion && <span className={styles.menuIndicatorDot} aria-hidden="true" />}
-            </NavLink>
-          </div>}
+          {(item) => {
+            const active = item.path === "/" ? location.pathname === "/" : location.pathname.startsWith(item.path);
+            const shortcut = formatShortcut(shortcuts[item.shortcutId], macShortcuts);
+            return <div className={styles.navigationRow} key={item.path}>
+              {withCollapsedTip(collapsed, shortcut ? `${item.label} ${shortcut}` : item.label,
+                <NavLink to={item.path} end={item.path === "/"}>
+                  <Icon icon={active ? solarNav[item.icon].bold : solarNav[item.icon].line} size="1.3em" />
+                  <span>{item.label}</span>
+                  {shortcut && <kbd>{shortcut}</kbd>}
+                  {item.path === "/harness/cursor" && cursorHarness && <span
+                    className={styles.menuStatusTag}
+                    data-taken={cursorHarness.settings_applied || undefined}
+                  >
+                    {cursorHarness.settings_applied ? t("已接管") : t("未接管")}
+                  </span>}
+                </NavLink>,
+              )}
+            </div>;
+          }}
         </VirtualList>
         <AdMenu ads={visibleAds} activeAdId={activeAd?.id} dismissingAdId={dismissCandidate?.id} readAdIds={readAdIds} triggerRefs={adTriggers} onOpen={openAd} onDismiss={openDismissAd} />
+        <div className={styles.navigationRow}>
+          {withCollapsedTip(collapsed, formatShortcut(shortcuts.settings, macShortcuts) ? `${t("设置")} ${formatShortcut(shortcuts.settings, macShortcuts)}` : t("设置"),
+            <NavLink to="/settings">
+              <Icon icon={settingsActive ? solarNav.settings.bold : solarNav.settings.line} size="1.3em" />
+              <span>{t("设置")}</span>
+              {formatShortcut(shortcuts.settings, macShortcuts) && <kbd>{formatShortcut(shortcuts.settings, macShortcuts)}</kbd>}
+              {availableVersion && <span className={styles.menuIndicatorDot} aria-hidden="true" />}
+            </NavLink>,
+          )}
+        </div>
       </nav>
     </Card>
     {activeAd && <FloatingAd ad={activeAd} trigger={adTriggers.current.get(activeAd.id) ?? null} onClose={closeAd} onAction={performAdAction} />}
@@ -263,7 +334,22 @@ export function AppLayout() {
         />
       </label>
     </ConfirmDialog>
+    <ConfirmDialog
+      open={pendingPath !== null}
+      title={t("放弃未保存的修改？")}
+      cancelLabel={t("继续编辑")}
+      confirmLabel={t("放弃")}
+      onCancel={() => setPendingPath(null)}
+      onConfirm={() => {
+        peekLeaveDiscard()?.();
+        if (pendingPath) navigate(pendingPath);
+        setPendingPath(null);
+      }}
+    >
+      <p>{t("模型编辑尚未保存，离开后这些修改会丢失。")}</p>
+    </ConfirmDialog>
     <main className={styles.content}>
+      <ContentOverlayHost className={styles.overlayHost}>
       <div className={styles.actionRegion}>
         <Card className={styles.actions}>
           <div ref={setLeftActionTarget} className={styles.pageActions} />
@@ -274,6 +360,7 @@ export function AppLayout() {
         </Card>
       </div>
       <PageActionsTarget.Provider value={{ left: leftActionTarget, right: rightActionTarget }}>
+        <div className={pageMotion ? `${styles.pageFrame} ${styles.pageIn}` : styles.pageFrame}>
         <KeepAliveRouteOutlet
           activeCacheKey={location.pathname}
           include={keptAlivePages}
@@ -282,7 +369,13 @@ export function AppLayout() {
           containerClassName={styles.keepAliveContainer}
           cacheNodeClassName={styles.keepAlivePage}
         />
+        </div>
       </PageActionsTarget.Provider>
+      </ContentOverlayHost>
+      {commandsOpen && <CommandPalette onClose={() => setCommandsOpen(false)} onNavigate={(path) => {
+        if (peekLeaveDiscard()) setPendingPath(path);
+        else navigate(path);
+      }} />}
     </main>
   </PageLayout>;
 }

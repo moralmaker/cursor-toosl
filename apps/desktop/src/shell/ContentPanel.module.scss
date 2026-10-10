@@ -1,0 +1,96 @@
+@use "../styles/typography" as type;
+
+.sheet, .drawer {
+  position: absolute;
+  z-index: 1;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-top: var(--window-safe-top);
+  color: var(--vscode-foreground);
+  background: var(--vscode-editor-background);
+  -webkit-app-region: no-drag;
+  animation: panel-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  header, footer {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 52px;
+    padding: 0 16px;
+    font-size: type.$font-size-base;
+  }
+
+  header {
+    border-bottom: 1px solid var(--vscode-editorWidget-border);
+
+    strong {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    button {
+      height: 32px;
+      margin-left: -8px;
+      padding: 0 8px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--vscode-textLink-foreground);
+      font: inherit;
+      font-size: type.$font-size-base;
+      -webkit-app-region: no-drag;
+
+      &:hover { background: var(--vscode-toolbar-hoverBackground); }
+    }
+  }
+
+  footer {
+    justify-content: flex-end;
+    border-top: 1px solid var(--vscode-editorWidget-border);
+  }
+}
+
+.sheet {
+  inset: 0;
+}
+
+.drawer {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: clamp(320px, 52%, 880px);
+  max-width: 92%;
+  border-left: 1px solid var(--vscode-editorWidget-border);
+  box-shadow: -16px 0 40px rgb(0 0 0 / 25%);
+}
+
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
+.main { flex: 1 1 auto; min-width: 0; }
+.aside {
+  flex: 0 0 280px;
+  border-left: 1px solid var(--vscode-editorWidget-border);
+}
+
+.mainContent, .asideContent {
+  padding: 16px;
+}
+
+@keyframes panel-in {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet, .drawer { animation: none; }
+}

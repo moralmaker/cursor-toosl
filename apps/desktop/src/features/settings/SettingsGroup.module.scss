@@ -1,0 +1,99 @@
+@use "../../styles/typography" as type;
+
+.group {
+  min-width: 0;
+  padding: 4px 16px 4px;
+
+  header {
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  h2 {
+    margin: 0;
+    font-size: type.$font-size-base;
+    font-weight: 630;
+  }
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--vscode-sideBar-border);
+
+  &:last-child { border-bottom: 0; }
+}
+
+.copy {
+  min-width: 0;
+
+  strong {
+    font-weight: 600;
+    font-size: type.$font-size-base;
+  }
+
+  p {
+    margin: 2px 0 0;
+    color: var(--vscode-descriptionForeground);
+    font-size: type.$font-size-2xs;
+  }
+}
+
+.control {
+  flex: 0 1 auto;
+  max-width: 62%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.field {
+  width: min(240px, 46vw);
+}
+
+.value {
+  color: var(--vscode-descriptionForeground);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.textButton {
+  padding: 4px;
+  color: var(--vscode-textLink-foreground);
+  background: transparent;
+  border: 0;
+  font-size: type.$font-size-xs;
+
+  &:hover { color: var(--vscode-textLink-activeForeground); }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+@media (max-width: 680px) {
+  .row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .control,
+  .field {
+    max-width: none;
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .value { text-align: left; }
+}

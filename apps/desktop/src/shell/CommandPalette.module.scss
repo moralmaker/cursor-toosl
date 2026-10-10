@@ -1,0 +1,47 @@
+@use "../styles/typography" as type;
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  padding-top: 12vh;
+  background: rgb(6 8 12 / 45%);
+}
+
+.panel {
+  width: min(520px, calc(100% - 48px));
+  height: fit-content;
+  overflow: hidden;
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-editorWidget-border);
+  border-radius: 14px;
+  box-shadow: var(--oa-dropdown-shadow);
+
+  input {
+    width: 100%;
+    border: 0;
+    outline: none;
+    padding: 14px 16px;
+    color: var(--vscode-input-foreground);
+    background: transparent;
+    font-size: type.$font-size-base;
+  }
+
+  button {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 0;
+    background: transparent;
+    color: var(--vscode-foreground);
+    text-align: left;
+    padding: 8px 16px;
+    font: inherit;
+    font-size: type.$font-size-base;
+
+    &:hover { background: var(--vscode-list-hoverBackground); }
+  }
+}

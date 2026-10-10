@@ -413,6 +413,7 @@ mod tests {
                 anthropic_max_tokens: None,
                 anthropic_thinking_effort: None,
                 thinking_budget_tokens: None,
+                custom_price: None,
             })
             .await
             .unwrap();

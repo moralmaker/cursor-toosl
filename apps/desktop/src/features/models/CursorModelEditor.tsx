@@ -1,5 +1,5 @@
-import { useRef } from "react";
-import type { ModelInput, ModelType } from "../../shared/api";
+import { useEffect, useRef, useState } from "react";
+import { api, type ModelInput, type ModelTokenPrice, type ModelType, type OfficialModelPrice } from "../../shared/api";
 import { defaultCustomHeadersText } from "../../shared/utils/modelDefaults";
 import { modelPresets, presetEndpoint, trimTrailingSlash, type ModelPreset } from "../../shared/utils/modelPresets";
 import { Button } from "../../shared/ui/Button";
@@ -10,6 +10,7 @@ import { Combobox, Select, type ComboboxHandle } from "../../shared/ui/Select";
 import { Switch } from "../../shared/ui/Switch";
 import { claudeIcon, openAiIcon } from "../../shared/ui/icons";
 import { CursorPresetChips } from "./CursorPresetChips";
+import { emptyCustomPrice, formatUnitPrice, officialPrice } from "./modelPrice";
 import styles from "./CursorSettings.module.scss";
 
 export type CursorModelDraft = {
@@ -45,6 +46,7 @@ export const emptyCursorModelDraft = (): CursorModelDraft => ({
     anthropic_max_tokens: null,
     anthropic_thinking_effort: "xhigh",
     thinking_budget_tokens: null,
+    custom_price: null,
   },
   openAIExtraParamsText: "{}",
   customHeadersText: defaultCustomHeadersText,
@@ -59,6 +61,13 @@ export function CursorModelEditor({ draft, modelOptions, discovering, onChange, 
   onDiscover: () => Promise<boolean>;
 }) {
   const modelCombobox = useRef<ComboboxHandle>(null);
+  const [catalog, setCatalog] = useState<OfficialModelPrice[] | null>(null);
+  useEffect(() => {
+    let active = true;
+    void api.modelPrices().then((prices) => { if (active) setCatalog(prices); }).catch(() => { if (active) setCatalog([]); });
+    return () => { active = false; };
+  }, []);
+  const matchedPrice = catalog ? officialPrice(draft.model.model_id, catalog) : null;
   const setModel = (patch: Partial<ModelInput>) => onChange({ ...draft, model: { ...draft.model, ...patch } });
   const setType = (type: ModelType) => {
     // 切换协议类型时，若当前地址命中某预设的另一协议端点，自动换到该预设对应协议的端点，
@@ -158,6 +167,12 @@ export function CursorModelEditor({ draft, modelOptions, discovering, onChange, 
 
       <FormField label={t("模型名称")} hint={t("可以直接输入模型标识，也可以读取接口返回的模型列表。")}><Combobox ref={modelCombobox} value={draft.model.model_id} options={combinedOptions} placeholder="gpt-5" append={<Button className={styles.discoverButton} disabled={discovering || !canDiscover} onClick={() => void discoverModels()}>{discovering ? t("获取中…") : t("获取模型")}</Button>} onChange={(model_id) => setModel({ model_id, display_name: draft.model.display_name || model_id })} /></FormField>
       <FormField label={t("显示名称")} hint={t("仅用于界面展示，不会改变发送给模型服务的模型名称。")}> <TextInput placeholder={t("例如：主力模型")} value={draft.model.display_name} onChange={(event) => setModel({ display_name: event.target.value })} /></FormField>
+      <ModelPriceFields
+        pending={catalog === null}
+        official={matchedPrice}
+        customPrice={draft.model.custom_price}
+        onChange={(custom_price) => setModel({ custom_price })}
+      />
       <FormField className={styles.fullWidth} label={t("备注")} hint={t("显示在 Cursor 模型说明中。")}> <TextInput placeholder={t("请输入模型备注")} value={draft.model.tooltip_data} onChange={(event) => setModel({ tooltip_data: event.target.value })} /></FormField>
 
       <FormField label={t("上下文窗口 Token")} hint={t("留空时使用默认值。")}> <TextInput type="number" min={1} step={1} placeholder={t("留空使用默认值")} value={draft.model.context_window_tokens ?? ""} onChange={(event) => setModel({ context_window_tokens: numberValue(event.target.value) })} /></FormField>
@@ -190,6 +205,43 @@ export function CursorModelEditor({ draft, modelOptions, discovering, onChange, 
         onEnabledChange={(anthropic_extra_params_enabled) => setModel({ anthropic_extra_params_enabled })}
         onTextChange={(anthropicExtraParamsText) => onChange({ ...draft, anthropicExtraParamsText })}
       />}
+    </div>
+  </div>;
+}
+
+function ModelPriceFields({ pending, official, customPrice, onChange }: {
+  pending: boolean;
+  official: ModelTokenPrice | null;
+  customPrice: ModelTokenPrice | null;
+  onChange: (price: ModelTokenPrice | null) => void;
+}) {
+  const shown = customPrice ?? official;
+  const numberValue = (value: string) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+  };
+  const update = (patch: Partial<ModelTokenPrice>) => onChange({ ...(customPrice ?? emptyCustomPrice(official)), ...patch });
+  return <div className={`${styles.fullWidth} ${styles.price}`}>
+    <div className={styles.priceHead}>
+      <strong>{customPrice ? t("自定义价格") : pending ? t("正在匹配官方价") : official ? t("官方价") : t("未定价")}</strong>
+      <span>{t("美元 / 百万 Token。匹配到官方价时不用填写；中转加价再改。")}</span>
+    </div>
+    {pending && !customPrice ? <p>{t("正在读取官方价格。")}</p> : shown ? <p>{t("输入 {input} · 输出 {output} · 缓存读 {cacheRead} · 缓存写 {cacheWrite}", {
+      input: formatUnitPrice(shown.input_cost_per_million),
+      output: formatUnitPrice(shown.output_cost_per_million),
+      cacheRead: formatUnitPrice(shown.cache_read_cost_per_million),
+      cacheWrite: formatUnitPrice(shown.cache_write_cost_per_million),
+    })}</p> : <p>{t("这个模型 ID 没有官方价格，成本不计入估算。")}</p>}
+    {customPrice ? <div className={styles.priceGrid}>
+      <FormField label={t("输入价格")}><TextInput type="number" min={0} step="0.01" aria-label={t("输入价格")} value={customPrice.input_cost_per_million} onChange={(event) => update({ input_cost_per_million: numberValue(event.target.value) })} /></FormField>
+      <FormField label={t("输出价格")}><TextInput type="number" min={0} step="0.01" aria-label={t("输出价格")} value={customPrice.output_cost_per_million} onChange={(event) => update({ output_cost_per_million: numberValue(event.target.value) })} /></FormField>
+      <FormField label={t("缓存读取价格")}><TextInput type="number" min={0} step="0.01" aria-label={t("缓存读取价格")} value={customPrice.cache_read_cost_per_million} onChange={(event) => update({ cache_read_cost_per_million: numberValue(event.target.value) })} /></FormField>
+      <FormField label={t("缓存写入价格")}><TextInput type="number" min={0} step="0.01" aria-label={t("缓存写入价格")} value={customPrice.cache_write_cost_per_million} onChange={(event) => update({ cache_write_cost_per_million: numberValue(event.target.value) })} /></FormField>
+    </div> : null}
+    <div className={styles.priceActions}>
+      {customPrice
+        ? <button type="button" className={styles.textButton} onClick={() => onChange(null)}>{official ? t("恢复官方价") : t("清除自定义价格")}</button>
+        : <button type="button" className={styles.textButton} onClick={() => onChange(emptyCustomPrice(official))}>{t("使用自定义价格")}</button>}
     </div>
   </div>;
 }

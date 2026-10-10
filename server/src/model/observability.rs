@@ -225,7 +225,7 @@ mod overview {
 
     use serde::Serialize;
 
-    #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+    #[derive(Clone, Debug, Default, PartialEq, Serialize)]
     pub struct OverviewMetrics {
         pub llm_calls: i64,
         pub successful_calls: i64,
@@ -236,6 +236,8 @@ mod overview {
         pub cache_read_tokens: i64,
         pub cache_write_tokens: i64,
         pub output_tokens: i64,
+        pub estimated_cost_usd: f64,
+        pub unpriced_tokens: i64,
     }
 
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
@@ -247,13 +249,16 @@ mod overview {
         Day,
     }
 
-    #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+    #[derive(Clone, Debug, Default, PartialEq, Serialize)]
     pub struct TokenUsageBucket {
         pub bucket_start_ms: i64,
         pub input_tokens: i64,
         pub cache_read_tokens: i64,
         pub cache_write_tokens: i64,
         pub output_tokens: i64,
+        pub llm_calls: i64,
+        pub estimated_cost_usd: f64,
+        pub unpriced_tokens: i64,
     }
 
     impl TokenUsageBucket {
@@ -265,7 +270,7 @@ mod overview {
         }
     }
 
-    #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+    #[derive(Clone, Debug, Default, PartialEq, Serialize)]
     pub struct Overview {
         pub metrics: OverviewMetrics,
         pub token_usage_granularity: TokenUsageGranularity,

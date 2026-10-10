@@ -1,0 +1,30 @@
+@use "../../styles/typography" as type;
+
+.star {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid color-mix(in srgb, var(--vscode-textLink-foreground) 28%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--vscode-textLink-foreground) 8%, transparent);
+
+  p { margin: 0; flex: 1 1 180px; font-size: type.$font-size-xs; }
+}
+
+.close {
+  border: 0;
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  font-size: type.$font-size-xs;
+}
+
+.updateDot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  margin-left: 6px;
+  background: var(--vscode-errorForeground);
+  border-radius: 50%;
+}

@@ -12,11 +12,12 @@ import { ConfirmDialog } from "../../shared/ui/ConfirmDialog";
 import { FormField, SecretTextInput, TextInput } from "../../shared/ui/FormControls";
 import controls from "../../shared/ui/Controls.module.scss";
 import { Icon } from "../../shared/ui/Icon";
-import { Modal } from "../../shared/ui/Modal";
 import { Switch } from "../../shared/ui/Switch";
 import { TooltipTrigger } from "../../shared/ui/TooltipTrigger";
 import { addIcon } from "../../shared/ui/icons";
 import { useMessage } from "../../shared/ui/message";
+import { ContentPanel } from "../../shell/ContentPanel";
+import { setLeaveDiscard } from "../../shell/contentOverlay";
 import { PageActions } from "../../shell/PageActions";
 import { appStore, useAppStore } from "../../shared/store/appStore";
 
@@ -25,6 +26,8 @@ export function CursorSettingsPage() {
   const navigate = useNavigate();
   const message = useMessage();
   const [draft, setDraft] = useState<CursorModelDraft | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const draftBaseline = useRef("");
   const [editing, setEditing] = useState<Model | null>(null);
   const [modelOptions, setModelOptions] = useState<string[]>([]);
   const [discovering, setDiscovering] = useState(false);
@@ -70,17 +73,32 @@ export function CursorSettingsPage() {
     const status = await appStore.initializeCursorCa();
     if (status?.ca === "untrusted" && status.ca_install_command) setCaCommand(status.ca_install_command);
   };
+  const rememberDraft = (next: CursorModelDraft) => {
+    draftBaseline.current = JSON.stringify(next);
+    setDraft(next);
+  };
+  const closeEditor = () => {
+    if (editing && editorTesting) void cancelModelTest(editing.model_hash);
+    setDraft(null);
+    setEditing(null);
+    setConfirmDiscard(false);
+    setLeaveDiscard(null);
+  };
+  const requestCloseEditor = () => {
+    if (draft && JSON.stringify(draft) !== draftBaseline.current) setConfirmDiscard(true);
+    else closeEditor();
+  };
   const openNew = () => {
     const next = emptyCursorModelDraft();
     next.model.sort_order = models.length + 1;
     setEditing(null);
     setModelOptions([]);
-    setDraft(next);
+    rememberDraft(next);
   };
   const openEdit = (model: Model) => {
     setEditing(model);
     setModelOptions([model.model_id]);
-    setDraft({
+    rememberDraft({
       providerId: `builtin/${model.type}`,
       model: modelInput(model),
       openAIExtraParamsText: JSON.stringify(model.openai_extra_params, null, 2),
@@ -120,11 +138,23 @@ export function CursorSettingsPage() {
       if (await persist()) {
         setDraft(null);
         setEditing(null);
+        setLeaveDiscard(null);
       }
     } catch (cause) {
       message(errorText(cause));
     }
   };
+  useEffect(() => {
+    if (!draft || JSON.stringify(draft) === draftBaseline.current) {
+      setLeaveDiscard(null);
+      return;
+    }
+    setLeaveDiscard(() => {
+      setDraft(null);
+      setEditing(null);
+    });
+    return () => setLeaveDiscard(null);
+  }, [draft]);
   const cancelModelTest = async (modelHash: string) => {
     const active = activeModelTests.current.get(modelHash);
     if (!active || active.cancelling) return;
@@ -297,7 +327,7 @@ export function CursorSettingsPage() {
   const activeGroups = grouping === "provider" ? providerGroups : typeGroups;
   const pluginSectionHeight = pluginModels.length > 0 ? 60 + pluginModels.length * 56 : 0;
   const estimatedModelHeight = grouping === "flat"
-    ? Math.max(380, Math.ceil(models.length / 3) * 196 + pluginSectionHeight)
+    ? Math.max(160, models.length * 76 + pluginSectionHeight)
     : Math.max(380, activeGroups.reduce((height, group) => height + 60 + group.models.length * 56, 0) + Math.max(0, activeGroups.length - 1) * 20 + pluginSectionHeight);
 
   return <>
@@ -338,15 +368,41 @@ export function CursorSettingsPage() {
     >
       <p>{t("关闭后会清除 Cursor 的本地代理设置。如果你要登录官方账号，一般不用关闭，直接登录即可——工具里的模型和官方账号的模型已经可以无缝切换。确定要继续关闭并清理代理吗？")}</p>
     </ConfirmDialog>
-    <Modal fullHeight open={draft !== null} title={editing ? t("编辑模型") : t("添加模型")} banner={draft && (editorTesting || editorTestState) ? <CursorModelTestResult state={editorTestState} testing={editorTesting} /> : undefined} busy={cursorBusy || savingAndTesting} onClose={() => { if (editing && editorTesting) void cancelModelTest(editing.model_hash); setDraft(null); setEditing(null); }} onSubmit={() => void save()} submitLabel={t("保存")} secondaryAction={<button type="button" className={controls.secondary} disabled={cursorBusy || savingAndTesting} onClick={() => void (editorTesting && editing ? cancelModelTest(editing.model_hash) : saveAndTest())}>{savingAndTesting ? t("处理中…") : editorTesting ? t("取消测试") : t("保存并测试")}</button>}>
-      {draft && <>
-        <CursorModelEditor draft={draft} modelOptions={modelOptions} discovering={discovering} onChange={setDraft} onDiscover={discover} />
+    <ContentPanel
+      open={draft !== null}
+      title={editing ? t("编辑模型") : t("添加模型")}
+      onClose={requestCloseEditor}
+      aside={draft && <div className={styles.preview}>
+        <p>{t("在 Cursor 里显示的样子")}</p>
+        <div className={styles.previewCard}>
+          <strong>{draft.model.display_name || t("未命名模型")}</strong>
+          <code>{draft.model.model_id || t("模型名称")}</code>
+        </div>
+        {(editorTesting || editorTestState) && <CursorModelTestResult state={editorTestState} testing={editorTesting} />}
+      </div>}
+      footer={<>
+        <button type="button" className={controls.secondary} disabled={cursorBusy || savingAndTesting} onClick={requestCloseEditor}>{t("取消")}</button>
+        <button type="button" className={controls.secondary} disabled={cursorBusy || savingAndTesting} onClick={() => void (editorTesting && editing ? cancelModelTest(editing.model_hash) : saveAndTest())}>{savingAndTesting ? t("处理中…") : editorTesting ? t("取消测试") : t("保存并测试")}</button>
+        <button type="button" className={controls.primary} disabled={cursorBusy || savingAndTesting} onClick={() => void save()}>{t("保存")}</button>
       </>}
-    </Modal>
+    >
+      {draft && <CursorModelEditor draft={draft} modelOptions={modelOptions} discovering={discovering} onChange={setDraft} onDiscover={discover} />}
+    </ContentPanel>
+    <ConfirmDialog open={confirmDiscard} title={t("放弃未保存的修改？")} cancelLabel={t("继续编辑")} confirmLabel={t("放弃")} onCancel={() => setConfirmDiscard(false)} onConfirm={closeEditor}>
+      <p>{t("模型编辑尚未保存，离开后这些修改会丢失。")}</p>
+    </ConfirmDialog>
     <ConfirmDialog open={caCommand !== null} title={t("安装本地 CA")} cancelLabel={t("关闭")} confirmLabel={t("打开终端")} onCancel={() => setCaCommand(null)} onConfirm={openCaTerminal}>
       <div className={styles.editor}><strong>{t("需要授权安装证书")}</strong><span>{t("安装命令已自动复制。点击“打开终端”，将命令粘贴到终端中执行，并按提示输入密码。")}</span><pre className={styles.command}>{caCommand}</pre></div>
     </ConfirmDialog>
-    <Modal open={settingsGroup !== null} title={t("分组设置")} busy={groupSettingsBusy || cursorBusy} onClose={() => setSettingsGroup(null)} onSubmit={() => void saveGroupSettings()} submitLabel={t("保存")}>
+    <ContentPanel
+      open={settingsGroup !== null}
+      title={t("分组设置")}
+      onClose={() => { if (!groupSettingsBusy && !cursorBusy) setSettingsGroup(null); }}
+      footer={<>
+        <button type="button" className={controls.secondary} disabled={groupSettingsBusy || cursorBusy} onClick={() => setSettingsGroup(null)}>{t("取消")}</button>
+        <button type="button" className={controls.primary} disabled={groupSettingsBusy || cursorBusy} onClick={() => void saveGroupSettings()}>{groupSettingsBusy ? t("保存中…") : t("保存")}</button>
+      </>}
+    >
       {settingsGroup && <div className={styles.editor}>
         <FormField label={t("分组名称")} hint={t("应用于该分组下的全部模型，并作为 Cursor 模型选择器中的徽章标签；清空则恢复显示服务器域名。")}>
           <TextInput placeholder={settingsGroup.key} value={groupNameDraft} onChange={(event) => setGroupNameDraft(event.target.value)} />
@@ -358,13 +414,13 @@ export function CursorSettingsPage() {
           <SecretTextInput placeholder={t("留空保持不变")} autoComplete="off" value={groupApiKeyDraft} onChange={(event) => setGroupApiKeyDraft(event.target.value)} />
         </FormField>
       </div>}
-    </Modal>
+    </ContentPanel>
     <ConfirmDialog open={deleting !== null} title={t("删除模型")} cancelLabel={t("取消")} confirmLabel={t("删除")} onCancel={() => setDeleting(null)} onConfirm={() => { if (deleting) void appStore.deleteModel(deleting.model_hash); setDeleting(null); }}><p>{t("确定删除这个模型吗？")}</p></ConfirmDialog>
   </>;
 }
 
 function modelInput(model: Model): ModelInput {
-  const { model_hash: _hash, created_at_ms: _created, updated_at_ms: _updated, ...input } = model;
+  const { model_hash: _hash, created_at_ms: _created, updated_at_ms: _updated, price_source: _source, price: _price, ...input } = model;
   return input;
 }
 

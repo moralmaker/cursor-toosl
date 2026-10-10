@@ -1,12 +1,13 @@
 import type { CallDetail } from "../../shared/api";
 import { JsonEditor } from "../../shared/ui/JsonEditor";
 import { Tabs, type TabItem } from "../../shared/ui/Tabs";
+import { CallStatus } from "./CallTable";
 import styles from "./CallDetails.module.scss";
 
 const show = (value: string | number | null) => value ?? "-";
 const timing = (value: number | null) => value == null ? "-" : `${value} ms`;
 
-export function CallDetails({ detail }: { detail: CallDetail }) {
+export function CallDetails({ detail, compact = false }: { detail: CallDetail; compact?: boolean }) {
   const { call, request, response_chunks: chunks, cursor_trace: cursorTrace } = detail;
   const responseBody = chunks.map((chunk) => chunk.data).join("");
   const responseBytes = chunks.reduce((total, chunk) => total + chunk.byte_count, 0);
@@ -26,7 +27,7 @@ export function CallDetails({ detail }: { detail: CallDetail }) {
     [t("显示名称"), call.display_name],
     [t("思考强度"), show(call.reasoning_effort)],
     ["Fast", call.fast == null ? "-" : call.fast ? t("是") : t("否")],
-    [t("状态"), call.status],
+    [t("状态"), ""],
     ["Finish Reason", show(call.finish_reason)],
     ["HTTP Status", show(call.http_status)],
     ["Created At", `${call.created_at_ms} · ${new Date(call.created_at_ms).toLocaleString()}`],
@@ -49,7 +50,7 @@ export function CallDetails({ detail }: { detail: CallDetail }) {
 
   const tabs: TabItem[] = [
     { value: "call", label: t("调用信息"), content: <section>
-      <dl className={styles.details}>{fields.map(([label, value]) => <div key={label}><dt>{label}</dt><dd><code>{value}</code></dd></div>)}</dl>
+      <dl className={compact ? `${styles.details} ${styles.stack}` : styles.details}>{fields.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{label === t("状态") ? <CallStatus status={call.status} /> : <code>{value}</code>}</dd></div>)}</dl>
     </section> },
     { value: "request", label: t("请求"), content: <section>
       {request ? <>

@@ -1,4 +1,5 @@
 import { formatCompactInteger, formatInteger } from "../../../shared/utils/numberFormat";
+import { formatUSD } from "./tokenPrice";
 import { Icon } from "../../../shared/ui/Icon";
 import { useTooltip, type TooltipAnchor } from "../../../shared/ui/Tooltip";
 import { informationOutlineIcon } from "../../../shared/ui/icons";
@@ -13,14 +14,9 @@ export type HomeMetricsData = {
   promptTokens: number;
   cacheReadTokens: number;
   cacheWriteTokens: number;
+  estimatedCost: number;
+  unpricedTokens: number;
 };
-
-const TOKEN_PRICE_PER_MILLION = {
-  input: 5,
-  output: 25,
-  cacheRead: 0.5,
-  cacheWrite: 6.25,
-} as const;
 
 function formatMetricValue(value: number) {
   const full = formatInteger(value);
@@ -34,14 +30,6 @@ function formatRate(value: number | null) {
 
 function calculateRate(numerator: number, denominator: number) {
   return denominator > 0 ? numerator / denominator : null;
-}
-
-function priceTokens(tokens: number, pricePerMillion: number) {
-  return (tokens / 1_000_000) * pricePerMillion;
-}
-
-function formatUSD(value: number) {
-  return `$${value.toFixed(2)}`;
 }
 
 function elementAnchor(element: HTMLElement): TooltipAnchor {
@@ -74,14 +62,6 @@ export function HomeMetrics({ data, refreshVersion = 0 }: { data: HomeMetricsDat
     data.cacheReadTokens + data.cacheWriteTokens + inputTokens,
   );
   const successfulCallRate = calculateRate(data.successfulCalls, data.llmCalls);
-  const costs = {
-    input: priceTokens(inputTokens, TOKEN_PRICE_PER_MILLION.input),
-    output: priceTokens(outputTokens, TOKEN_PRICE_PER_MILLION.output),
-    cacheRead: priceTokens(data.cacheReadTokens, TOKEN_PRICE_PER_MILLION.cacheRead),
-    cacheWrite: priceTokens(data.cacheWriteTokens, TOKEN_PRICE_PER_MILLION.cacheWrite),
-  };
-  const totalCost = costs.input + costs.output + costs.cacheRead + costs.cacheWrite;
-  const cacheCost = costs.cacheRead + costs.cacheWrite;
   const cacheTooltip = [
     t("当前：{rate}", { rate: formatRate(defaultCacheHitRate) }),
     t("公式：缓存读取 /（缓存读取 + 非缓存输入）"),
@@ -110,32 +90,15 @@ export function HomeMetrics({ data, refreshVersion = 0 }: { data: HomeMetricsDat
     "",
     t("缓存读写已计入提示词侧统计。"),
   ].join("\n");
+  const costLabel = data.tokenUsage > 0 && data.unpricedTokens >= data.tokenUsage && data.estimatedCost === 0
+    ? t("未定价")
+    : formatUSD(data.estimatedCost);
   const costTooltip = [
-    t("按 Claude Opus 4.7 价格估算。"),
-    t("缓存统计策略：默认口径（{rate}）", { rate: formatRate(defaultCacheHitRate) }),
+    t("按每个模型的当前价格估算。官方价来自模型 ID，自定义价格只作用于这一条模型。"),
+    t("未匹配到价格的用量不计入金额。"),
     "",
-    t("普通输入：{tokens} × ${price}/1M = {cost}", {
-      tokens: formatMetricValue(inputTokens),
-      price: TOKEN_PRICE_PER_MILLION.input,
-      cost: formatUSD(costs.input),
-    }),
-    t("模型输出：{tokens} × ${price}/1M = {cost}", {
-      tokens: formatMetricValue(outputTokens),
-      price: TOKEN_PRICE_PER_MILLION.output,
-      cost: formatUSD(costs.output),
-    }),
-    t("缓存读取：{tokens} × ${price}/1M = {cost}", {
-      tokens: formatMetricValue(data.cacheReadTokens),
-      price: TOKEN_PRICE_PER_MILLION.cacheRead,
-      cost: formatUSD(costs.cacheRead),
-    }),
-    t("缓存写入：{tokens} × ${price}/1M = {cost}", {
-      tokens: formatMetricValue(data.cacheWriteTokens),
-      price: TOKEN_PRICE_PER_MILLION.cacheWrite,
-      cost: formatUSD(costs.cacheWrite),
-    }),
-    "",
-    t("合计：{cost}", { cost: formatUSD(totalCost) }),
+    t("已计价：{cost}", { cost: formatUSD(data.estimatedCost) }),
+    t("未定价 Token：{tokens}", { tokens: formatMetricValue(data.unpricedTokens) }),
   ].join("\n");
 
   return <div className={styles.scroller}>
@@ -162,10 +125,10 @@ export function HomeMetrics({ data, refreshVersion = 0 }: { data: HomeMetricsDat
         </div>
       </article>
       <article className={styles.metric}>
-        <div className={styles.label}>{t("价值估算")}<InfoTooltip content={costTooltip} /></div>
+        <div className={styles.label}>{t("价格估算")}<InfoTooltip content={costTooltip} /></div>
         <div className={styles.body}>
-          <div className={styles.value} title={formatUSD(totalCost)}>{formatUSD(totalCost)}</div>
-          <div className={styles.secondary}>{t("缓存读写 {cost}", { cost: formatUSD(cacheCost) })}</div>
+          <div className={styles.value} title={costLabel}>{costLabel}</div>
+          <div className={styles.secondary}>{data.unpricedTokens > 0 ? t("未定价 {tokens}", { tokens: formatCompactInteger(data.unpricedTokens) }) : t("按各模型当前价格")}</div>
         </div>
       </article>
     </section>

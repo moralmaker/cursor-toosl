@@ -2,9 +2,10 @@ import type { IconifyIcon } from "@iconify/react/offline";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Sortable from "sortablejs";
 import type { Model, PluginModelDescriptor } from "../../shared/api";
+import { ActionMenu } from "../../shared/ui/ActionMenu";
 import { Card } from "../../shared/ui/Card";
 import { Icon } from "../../shared/ui/Icon";
-import { chevronDownIcon, chevronRightIcon, claudeIcon, dragIcon, editIcon, flatColorOrganizationIcon, openAiIcon } from "../../shared/ui/icons";
+import { chevronDownIcon, chevronRightIcon, claudeIcon, dragIcon, editIcon, openAiIcon } from "../../shared/ui/icons";
 import { TruncatedButton } from "../../shared/ui/TruncatedButton";
 import { CursorModelTestResult, type CursorModelTestState } from "./CursorModelTestResult";
 import styles from "./CursorSettings.module.scss";
@@ -14,7 +15,7 @@ export type CursorModelGrouping = "flat" | "provider" | "type";
 export type CursorModelGroup = {
   key: string;
   label: string;
-  icon: IconifyIcon;
+  icon?: IconifyIcon;
   models: Model[];
 };
 
@@ -55,7 +56,7 @@ export function cursorModelGroups(models: Model[], grouping: Exclude<CursorModel
 
 export function CursorModelCards(props: CursorModelCardsProps) {
   const builtins = props.grouping === "flat"
-    ? <div style={{ paddingTop: "10px" }}><ModelGrid {...props} sortable /></div>
+    ? <ModelGrid {...props} sortable />
     : <div className={styles.modelGroups}>
       {cursorModelGroups(props.models, props.grouping).map((group) => <CollapsibleGroup
         key={group.key}
@@ -128,8 +129,9 @@ function CollapsibleGroup({ label, icon, iconSrc, defaultOpen = true, onSettings
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >
-        {icon && <Icon icon={icon} size="1.1em" />}
-        {iconSrc && <Icon src={iconSrc} size="1.1em" />}
+        <span className={styles.brand}>
+          {iconSrc ? <Icon src={iconSrc} size="1.15em" /> : icon ? <Icon icon={icon} size="1.15em" /> : label.slice(0, 1)}
+        </span>
         <span className={styles.groupLabel}>{label}</span>
       </button>
       {onSettings && <button type="button" className={styles.groupSettings} onClick={onSettings}>
@@ -150,27 +152,44 @@ function CollapsibleGroup({ label, icon, iconSrc, defaultOpen = true, onSettings
   </Card>;
 }
 
-function ModelListRow({ model, disabled, testing, result, onTest, onEdit, onDuplicate, onDelete }: {
+function ModelListRow({ model, disabled, testing, result, sortable, onTest, onEdit, onDuplicate, onDelete }: {
   model: Model;
   disabled: boolean;
   testing: boolean;
   result: CursorModelTestState | undefined;
+  sortable?: boolean;
   onTest: () => void;
   onEdit: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
 }) {
-  return <div className={styles.modelRow}>
+  const protocol = protocolChip(model);
+  return <div className={sortable ? `${styles.modelRow} ${styles.sortable}` : styles.modelRow} data-model-hash={model.model_hash}>
+    {sortable && <button type="button" className={styles.sortHandle} disabled={disabled} aria-label={t("拖动排序")} onClick={(event) => event.stopPropagation()}>
+      <Icon icon={dragIcon} size="1.1em" />
+    </button>}
+    <span className={styles.brand}><Icon icon={model.type === "anthropic" ? claudeIcon : openAiIcon} size="1.15em" /></span>
     <div className={styles.modelRowName}>
-      <span className={styles.modelRowNameText}>{model.display_name}</span>
-      <span className={styles.modelRowModelId}>{model.model_id}</span>
+      <span className={styles.modelRowTitle}>
+        <span className={styles.modelRowNameText}>{model.display_name}</span>
+        <span className={styles.protocol} data-protocol={protocol}>{protocol === "anthropic" ? "Anthropic" : protocol === "chat" ? "Chat" : "Responses"}</span>
+      </span>
+      <span className={styles.modelRowModelId}>{model.model_id} · {providerDomain(model.base_url)} · {model.price_source === "custom" ? t("自定义价格") : model.price_source === "official" ? t("官方价") : t("未定价")}</span>
+      {testing || result
+        ? <CursorModelTestResult compact state={result} testing={testing} />
+        : <span className={styles.untested}>{t("未测试")}</span>}
     </div>
-    <CursorModelTestResult compact state={result} testing={testing} />
     <div className={styles.modelCardActions}>
       <TruncatedButton size="small" disabled={disabled && !testing} label={testing ? t("取消测试") : t("测试")} onClick={onTest} />
       <TruncatedButton size="small" disabled={disabled} label={t("编辑")} onClick={onEdit} />
-      <TruncatedButton size="small" disabled={disabled} label={t("复制")} onClick={onDuplicate} />
-      <TruncatedButton size="small" className={styles.deleteButton} disabled={disabled} label={t("删除")} onClick={onDelete} />
+      <ActionMenu
+        label={t("更多")}
+        disabled={disabled}
+        items={[
+          { id: "duplicate", label: t("复制"), onSelect: onDuplicate },
+          { id: "delete", label: t("删除"), onSelect: onDelete },
+        ]}
+      />
     </div>
   </div>;
 }
@@ -184,11 +203,14 @@ function PluginModelRow({ model, disabled, testing, result, onTest, onSettings }
   onSettings: () => void;
 }) {
   return <div className={styles.modelRow}>
+    <span className={styles.brand}>{model.icon ? <Icon src={model.icon} size="1.15em" /> : model.displayName.slice(0, 1)}</span>
     <div className={styles.modelRowName}>
       <span className={styles.modelRowNameText}>{model.displayName}</span>
       <span className={styles.modelRowModelId}>{model.modelId}</span>
+      {testing || result
+        ? <CursorModelTestResult compact state={result} testing={testing} />
+        : <span className={styles.untested}>{t("未测试")}</span>}
     </div>
-    <CursorModelTestResult compact state={result} testing={testing} />
     <div className={styles.modelCardActions}>
       <TruncatedButton size="small" disabled={disabled && !testing} label={testing ? t("取消测试") : t("测试")} onClick={onTest} />
       <TruncatedButton size="small" disabled={disabled} label={t("设置")} onClick={onSettings} />
@@ -220,7 +242,7 @@ function ModelGrid({
     sortable.current = Sortable.create(grid.current, {
       animation: 160,
       dataIdAttr: "data-model-hash",
-      draggable: `.${styles.modelCard}`,
+      draggable: `.${styles.modelRow}`,
       handle: `.${styles.sortHandle}`,
       ghostClass: styles.sortGhost,
       chosenClass: styles.sortChosen,
@@ -258,44 +280,34 @@ function ModelGrid({
     sortable.current?.sort(models.map((model) => model.model_hash), false);
   }, [disabled, models]);
 
-  return <div ref={grid} className={styles.modelGrid}>
-    {models.map((model) => {
-      const result = testResults.get(model.model_hash);
-      const testing = testingModelHashes.has(model.model_hash);
-      return <Card className={styles.modelCard} data-model-hash={model.model_hash} key={model.model_hash}>
-        {sortableEnabled && <button type="button" className={styles.sortHandle} disabled={disabled} aria-label={t("拖动排序")} title={t("拖动排序")} onClick={(event) => event.stopPropagation()}>
-          <Icon icon={dragIcon} size="1.25em" />
-        </button>}
-        <div className={styles.modelCardContent}>
-          <div className={styles.modelCardTop}>
-            <div className={styles.modelCardName}>
-              <span className={styles.modelCardNameText}>{model.display_name}</span>
-              <span className={styles.modelCardModelId}>{model.model_id}</span>
-            </div>
-            <span className={styles.modelTypeBadge}>
-              <Icon icon={model.type === "anthropic" ? claudeIcon : openAiIcon} />
-              {model.type === "anthropic" ? "Anthropic" : "OpenAI"}
-            </span>
-          </div>
-          <div className={styles.modelCardTest}>
-            <CursorModelTestResult state={result} testing={testing} />
-          </div>
-          <div className={styles.modelCardActions}>
-            <TruncatedButton size="small" disabled={disabled && !testing} label={testing ? t("取消测试") : t("测试")} onClick={() => onTest(model)} />
-            <TruncatedButton size="small" disabled={disabled} label={t("编辑")} onClick={() => onEdit(model)} />
-            <TruncatedButton size="small" disabled={disabled} label={t("复制")} onClick={() => onDuplicate(model)} />
-            <TruncatedButton size="small" className={styles.deleteButton} disabled={disabled} label={t("删除")} onClick={() => onDelete(model)} />
-          </div>
-        </div>
-      </Card>;
-    })}
-  </div>;
+  return <Card className={styles.modelListCard}>
+    <div ref={grid} className={styles.modelList}>
+      {models.map((model) => <ModelListRow
+        key={model.model_hash}
+        model={model}
+        disabled={disabled}
+        testing={testingModelHashes.has(model.model_hash)}
+        result={testResults.get(model.model_hash)}
+        sortable={sortableEnabled}
+        onTest={() => onTest(model)}
+        onEdit={() => onEdit(model)}
+        onDuplicate={() => onDuplicate(model)}
+        onDelete={() => onDelete(model)}
+      />)}
+    </div>
+  </Card>;
+}
+
+function protocolChip(model: Model) {
+  if (model.type === "anthropic") return "anthropic";
+  if (model.openai_endpoint === "/v1/chat/completions") return "chat";
+  return "responses";
 }
 
 function providerGroup(model: Model) {
   const key = providerDomain(model.base_url);
   const label = model.group_name?.trim() || key;
-  return { key, label, icon: flatColorOrganizationIcon };
+  return { key, label };
 }
 
 function providerDomain(baseUrl: string) {
