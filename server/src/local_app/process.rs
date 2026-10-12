@@ -238,21 +238,61 @@ async fn signal_platform_cursor(force: bool) -> Result<()> {
 
 #[cfg(target_os = "windows")]
 async fn locate_platform_cursor() -> Result<Option<StoppedCursor>> {
-    let mut query = Command::new("powershell");
+    match tokio::task::spawn_blocking(windows_cursor_exe_path).await {
+        Ok(Ok(Some(path))) => {
+            return Ok(Some(StoppedCursor {
+                program: path,
+                args: Vec::new(),
+            }));
+        }
+        Ok(Ok(None)) => {}
+        Ok(Err(error)) => {
+            tracing::warn!(%error, "native Cursor.exe lookup failed; trying PowerShell");
+        }
+        Err(error) => {
+            tracing::warn!(%error, "native Cursor.exe lookup task failed; trying PowerShell");
+        }
+    }
+    match locate_cursor_via_powershell().await {
+        Ok(found) => Ok(found),
+        Err(error) => {
+            // 查不到进程时按未运行处理，仍允许写入代理设置；不要让整次状态查询失败。
+            tracing::warn!(%error, "PowerShell Cursor.exe lookup failed; treating as not running");
+            Ok(None)
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+async fn locate_cursor_via_powershell() -> Result<Option<StoppedCursor>> {
+    let powershell = std::env::var_os("SystemRoot")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(r"C:\Windows"))
+        .join(r"System32\WindowsPowerShell\v1.0\powershell.exe");
+    let mut query = Command::new(powershell);
     hide_console(&mut query);
     let output = query
         .args([
             "-NoProfile",
             "-NonInteractive",
             "-Command",
-            "Get-Process -Name Cursor -ErrorAction SilentlyContinue | Where-Object Path | Select-Object -First 1 -ExpandProperty Path",
+            "$ErrorActionPreference='SilentlyContinue'; Get-Process -Name Cursor | Where-Object { $_.Path } | Select-Object -First 1 -ExpandProperty Path",
         ])
         .output()
-        .await?;
+        .await
+        .map_err(|error| {
+            Error::Config(format!("failed to inspect the Cursor.exe process: {error}"))
+        })?;
     if !output.status.success() {
-        return Err(Error::Config(
-            "failed to inspect the Cursor.exe process".into(),
-        ));
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(Error::Config(format!(
+            "failed to inspect the Cursor.exe process{}",
+            if stderr.trim().is_empty() {
+                String::new()
+            } else {
+                format!(": {}", stderr.trim())
+            }
+        )));
     }
     let path = String::from_utf8_lossy(&output.stdout).trim().to_owned();
     if path.is_empty() {
@@ -265,17 +305,116 @@ async fn locate_platform_cursor() -> Result<Option<StoppedCursor>> {
 }
 
 #[cfg(target_os = "windows")]
+fn windows_cursor_exe_path() -> Result<Option<PathBuf>> {
+    use std::{
+        ffi::OsString,
+        mem::{size_of, zeroed},
+        os::windows::ffi::OsStringExt,
+    };
+
+    use windows_sys::Win32::{
+        Foundation::{CloseHandle, INVALID_HANDLE_VALUE},
+        System::{
+            Diagnostics::ToolHelp::{
+                CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
+                TH32CS_SNAPPROCESS,
+            },
+            Threading::{
+                OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION,
+            },
+        },
+    };
+
+    unsafe {
+        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if snapshot == INVALID_HANDLE_VALUE {
+            return Err(Error::Config(format!(
+                "failed to inspect the Cursor.exe process: {}",
+                std::io::Error::last_os_error()
+            )));
+        }
+        struct Handle(*mut core::ffi::c_void);
+        impl Drop for Handle {
+            fn drop(&mut self) {
+                unsafe {
+                    CloseHandle(self.0);
+                }
+            }
+        }
+        let _snapshot = Handle(snapshot);
+
+        let mut entry: PROCESSENTRY32W = zeroed();
+        entry.dwSize = size_of::<PROCESSENTRY32W>() as u32;
+        if Process32FirstW(snapshot, &mut entry) == 0 {
+            return Err(Error::Config(format!(
+                "failed to inspect the Cursor.exe process: {}",
+                std::io::Error::last_os_error()
+            )));
+        }
+
+        loop {
+            let name = {
+                let len = entry
+                    .szExeFile
+                    .iter()
+                    .position(|&c| c == 0)
+                    .unwrap_or(entry.szExeFile.len());
+                OsString::from_wide(&entry.szExeFile[..len])
+                    .to_string_lossy()
+                    .to_ascii_lowercase()
+            };
+            if name == "cursor.exe" {
+                let process =
+                    OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, entry.th32ProcessID);
+                if !process.is_null() {
+                    let _process = Handle(process);
+                    let mut buffer = vec![0u16; 1024];
+                    let mut size = buffer.len() as u32;
+                    if QueryFullProcessImageNameW(process, 0, buffer.as_mut_ptr(), &mut size) != 0 {
+                        let path = PathBuf::from(OsString::from_wide(&buffer[..size as usize]));
+                        if !path.as_os_str().is_empty() {
+                            return Ok(Some(path));
+                        }
+                    }
+                }
+            }
+            if Process32NextW(snapshot, &mut entry) == 0 {
+                break;
+            }
+        }
+    }
+    Ok(None)
+}
+
+#[cfg(target_os = "windows")]
 async fn platform_cursor_running() -> Result<bool> {
+    match tokio::task::spawn_blocking(|| windows_cursor_exe_path().map(|path| path.is_some())).await
+    {
+        Ok(Ok(running)) => return Ok(running),
+        Ok(Err(error)) => {
+            tracing::warn!(%error, "native Cursor.exe running check failed; trying tasklist");
+        }
+        Err(error) => {
+            tracing::warn!(%error, "native Cursor.exe running check task failed; trying tasklist");
+        }
+    }
+
     let mut list = Command::new("tasklist");
     hide_console(&mut list);
-    let processes = list
+    let processes = match list
         .args(["/FI", "IMAGENAME eq Cursor.exe", "/NH", "/FO", "CSV"])
         .output()
-        .await?;
+        .await
+    {
+        Ok(output) => output,
+        Err(error) => {
+            tracing::warn!(%error, "tasklist Cursor.exe check failed; treating as not running");
+            return Ok(false);
+        }
+    };
     if !processes.status.success() {
-        return Err(Error::Config(
-            "failed to inspect the Cursor.exe process".into(),
-        ));
+        tracing::warn!("tasklist Cursor.exe check returned non-zero; treating as not running");
+        return Ok(false);
     }
     Ok(String::from_utf8_lossy(&processes.stdout)
         .to_ascii_lowercase()

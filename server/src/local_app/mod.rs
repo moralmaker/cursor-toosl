@@ -117,7 +117,10 @@ impl CursorHarness {
             && matches!(ca, CaState::Ready)
             && self.inner.backend_addr.read().is_some()
         {
-            self.enable().await?;
+            // 恢复接管失败时仍返回现有 CA/模型状态，避免界面误显示成“需要重新初始化”。
+            if let Err(error) = self.enable().await {
+                tracing::warn!(%error, "failed to restore Cursor takeover during status");
+            }
         }
         let proxy = self.inner.proxy.lock().await;
         let proxy_url = proxy.url();
