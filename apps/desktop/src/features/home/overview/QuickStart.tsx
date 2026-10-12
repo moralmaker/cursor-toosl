@@ -8,7 +8,7 @@ import styles from "./QuickStart.module.scss";
 const DISMISS_KEY = "cursor-tools.quickstart.dismissed";
 const TESTED_KEY = "cursor-tools.quickstart.tested";
 
-const stepIds = ["ca", "takeover", "model", "test", "restart"] as const;
+const stepIds = ["ca", "model", "test", "takeover", "restart"] as const;
 type StepId = typeof stepIds[number];
 
 function errorText(cause: unknown) {
@@ -106,9 +106,9 @@ export function QuickStart({ done, pending, busy, onRun }: {
 }) {
   const steps: Array<{ id: StepId; title: string }> = [
     { id: "ca", title: t("初始化 CA") },
-    { id: "takeover", title: t("开启接管") },
     { id: "model", title: t("添加模型") },
     { id: "test", title: t("测试连通") },
+    { id: "takeover", title: t("开启接管") },
     { id: "restart", title: t("重启 Cursor") },
   ];
   const current = steps.find((step) => !done[step.id])?.id;
