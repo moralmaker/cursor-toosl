@@ -215,7 +215,12 @@ fn wire_content(content: &ProjectedContent, model: &str) -> Result<Value> {
             calls,
         } => {
             let mut parts = Vec::new();
-            if !thinking.is_empty() || replay_state.is_some() {
+            if let Some(state) = replay_state
+                .as_ref()
+                .filter(|state| state.provider_kind == "cursor_opaque_parts")
+            {
+                parts.extend(opaque_reasoning_parts(state, model)?);
+            } else if !thinking.is_empty() || replay_state.is_some() {
                 let mut reasoning = json!({
                     "type": "reasoning",
                     "text": thinking,
@@ -248,6 +253,31 @@ fn wire_content(content: &ProjectedContent, model: &str) -> Result<Value> {
             "isError": result.is_error,
         }]),
     })
+}
+
+fn opaque_reasoning_parts(
+    state: &crate::model::ProviderReplayState,
+    model: &str,
+) -> Result<Vec<Value>> {
+    let items = state
+        .value
+        .get("parts")
+        .and_then(Value::as_array)
+        .ok_or_else(|| Error::Protocol("Cursor opaque reasoning parts are missing".into()))?;
+    items
+        .iter()
+        .map(|part| {
+            let mut reasoning = json!({
+                "type": "reasoning",
+                "text": part.get("text").and_then(Value::as_str).unwrap_or_default(),
+                "providerOptions": {"cursor": {"modelName": model}},
+            });
+            if let Some(signature) = part.get("signature").and_then(Value::as_str) {
+                reasoning["signature"] = Value::String(signature.to_string());
+            }
+            Ok(reasoning)
+        })
+        .collect()
 }
 
 fn encode_replay_state(replay_state: &crate::model::ProviderReplayState) -> Result<String> {

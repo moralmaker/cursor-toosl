@@ -171,7 +171,7 @@ fn decode_assistant(value: &Value, internal_id: &str) -> Result<MessageContent> 
     let mut text = String::new();
     let mut thinking = String::new();
     let mut calls = Vec::new();
-    let mut replay_state = None;
+    let mut reasoning_parts = Vec::new();
     for part in value
         .get("content")
         .and_then(Value::as_array)
@@ -183,14 +183,14 @@ fn decode_assistant(value: &Value, internal_id: &str) -> Result<MessageContent> 
                 text.push_str(part.get("text").and_then(Value::as_str).unwrap_or_default())
             }
             Some("reasoning") => {
-                thinking.push_str(part.get("text").and_then(Value::as_str).unwrap_or_default());
-                if let Some(signature) = part.get("signature").and_then(Value::as_str) {
-                    if replay_state.is_some() {
-                        return Err(Error::Protocol(
-                            "Cursor assistant has multiple reasoning signatures".into(),
-                        ));
-                    }
-                    replay_state = Some(decode_replay_state(signature)?);
+                let part_text = part.get("text").and_then(Value::as_str).unwrap_or_default();
+                thinking.push_str(part_text);
+                let signature = part
+                    .get("signature")
+                    .and_then(Value::as_str)
+                    .map(str::to_string);
+                if !part_text.is_empty() || signature.is_some() {
+                    reasoning_parts.push((part_text.to_string(), signature));
                 }
             }
             Some("tool-call") => calls.push(ToolCallContent {
@@ -202,6 +202,7 @@ fn decode_assistant(value: &Value, internal_id: &str) -> Result<MessageContent> 
             _ => {}
         }
     }
+    let replay_state = decode_reasoning_replay(&reasoning_parts)?;
     Ok(MessageContent::Assistant {
         text,
         thinking,
@@ -210,6 +211,41 @@ fn decode_assistant(value: &Value, internal_id: &str) -> Result<MessageContent> 
         replay_state,
         tool_calls: calls,
     })
+}
+
+fn decode_reasoning_replay(
+    parts: &[(String, Option<String>)],
+) -> Result<Option<crate::model::ProviderReplayState>> {
+    let signature_count = parts
+        .iter()
+        .filter(|(_, signature)| signature.is_some())
+        .count();
+    if signature_count <= 1 {
+        return parts
+            .iter()
+            .find_map(|(_, signature)| signature.as_deref())
+            .map(decode_replay_state)
+            .transpose();
+    }
+    // Cursor official thinking can emit several signed reasoning parts on one
+    // assistant message. Keep each part so the checkpoint can be written back
+    // unchanged, and so a later custom-model turn can still read the history.
+    Ok(Some(crate::model::ProviderReplayState {
+        provider_kind: "cursor_opaque_parts".into(),
+        value: serde_json::json!({
+            "parts": parts
+                .iter()
+                .map(|(text, signature)| {
+                    let mut item = serde_json::Map::new();
+                    item.insert("text".into(), Value::String(text.clone()));
+                    if let Some(signature) = signature {
+                        item.insert("signature".into(), Value::String(signature.clone()));
+                    }
+                    Value::Object(item)
+                })
+                .collect::<Vec<_>>()
+        }),
+    }))
 }
 
 fn decode_replay_state(signature: &str) -> Result<crate::model::ProviderReplayState> {

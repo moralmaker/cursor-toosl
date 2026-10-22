@@ -269,3 +269,69 @@ fn opaque_cursor_reasoning_signature_round_trips_without_decoding() {
     let encoded = wire_message(&projected[0], "model", None).unwrap();
     assert_eq!(encoded["content"][0]["signature"], signature);
 }
+
+#[test]
+fn multiple_opaque_reasoning_signatures_round_trip() {
+    let wire = json!({
+        "role": "assistant",
+        "id": "1",
+        "content": [
+            {"type":"reasoning", "text":"first", "signature":"sig-a"},
+            {"type":"reasoning", "text":"second", "signature":"sig-b"},
+            {"type":"text", "text":"answer"},
+            {"type":"tool-call", "toolCallId":"call-1", "toolName":"Shell", "args":{"command":"ls"}}
+        ],
+    });
+    let message = decode(
+        serde_json::to_vec(&wire).unwrap().as_slice(),
+        "cursor-root:multi".into(),
+    )
+    .unwrap();
+    let MessageContent::Assistant {
+        text,
+        thinking,
+        replay_state,
+        tool_calls,
+        ..
+    } = &message.content
+    else {
+        panic!("expected assistant");
+    };
+    assert_eq!(text, "answer");
+    assert_eq!(thinking, "firstsecond");
+    assert_eq!(tool_calls.len(), 1);
+    assert_eq!(
+        replay_state.as_ref().unwrap().provider_kind,
+        "cursor_opaque_parts"
+    );
+    let result = decode(
+        serde_json::to_vec(&json!({
+            "role": "tool",
+            "id": "call-1",
+            "content": [{
+                "type": "tool-result",
+                "toolCallId": "call-1",
+                "toolName": "Shell",
+                "result": "ok"
+            }],
+        }))
+        .unwrap()
+        .as_slice(),
+        "cursor-root:multi-result".into(),
+    )
+    .unwrap();
+
+    let projected = project_messages(&[message, result]).unwrap();
+    let encoded = wire_message(&projected[0], "model", None).unwrap();
+    let content = encoded["content"].as_array().unwrap();
+    let signatures = content
+        .iter()
+        .filter(|part| part["type"] == "reasoning")
+        .map(|part| part["signature"].as_str().unwrap().to_string())
+        .collect::<Vec<_>>();
+    assert_eq!(signatures, ["sig-a", "sig-b"]);
+    assert_eq!(content[0]["text"], "first");
+    assert_eq!(content[1]["text"], "second");
+    assert_eq!(content[2]["text"], "answer");
+    assert_eq!(content[3]["toolName"], "Shell");
+}
