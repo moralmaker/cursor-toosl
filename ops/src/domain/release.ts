@@ -143,12 +143,25 @@ export function opsAssetUrl(origin: string, sourceUrl: string): string {
   return `${origin.replace(/\/$/, "")}/api/v1/updates/assets/${encodeURIComponent(name)}`;
 }
 
+export const RELEASE_REPOSITORY = "moralmaker/cursor-toosl";
+
+const RETIRED_RELEASE_REPOSITORIES = new Set(["moralmaker/cursor-tools-releases"]);
+
+/** 已归档的发布仓库仍可能从缓存的管理台提交上来，统一改到当前源码仓库。 */
+export function resolveReleaseRepository(repository: string): string {
+  const normalized = repository.trim();
+  if (RETIRED_RELEASE_REPOSITORIES.has(normalized)) {
+    return RELEASE_REPOSITORY;
+  }
+  return normalized;
+}
+
 export function parseGithubImport(input: unknown): { value: GithubImportInput } | { errors: string[] } {
   const result = githubRepoSchema.safeParse(input);
   if (!result.success) {
     return { errors: result.error.issues.map((issue) => `${issue.path.join(".") || "body"}: ${issue.message}`) };
   }
-  return { value: result.data };
+  return { value: { repository: resolveReleaseRepository(result.data.repository) } };
 }
 
 export function manifestFromGithubJson(

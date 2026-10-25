@@ -3,6 +3,8 @@ import { api, type ReleaseRecord } from "../api.ts";
 import { ConfirmDialog } from "../components/ConfirmDialog.tsx";
 import { emptyRelease, fromRelease, ReleaseEditor, type ReleaseDraft } from "./ReleaseEditor.tsx";
 
+const RELEASE_REPOSITORY = "moralmaker/cursor-toosl";
+
 type ReleasesPageProps = { onError: (message: string) => void };
 
 export function ReleasesPage({ onError }: ReleasesPageProps) {
@@ -10,7 +12,7 @@ export function ReleasesPage({ onError }: ReleasesPageProps) {
   const [editing, setEditing] = useState<{ version?: string; draft: ReleaseDraft } | null>(null);
   const [pending, setPending] = useState(false);
   const [removing, setRemoving] = useState<ReleaseRecord | null>(null);
-  const [repository, setRepository] = useState("moralmaker/cursor-toosl");
+  const [repository, setRepository] = useState(RELEASE_REPOSITORY);
 
   async function refresh() {
     setReleases((await api.releases()).releases);
@@ -43,7 +45,9 @@ export function ReleasesPage({ onError }: ReleasesPageProps) {
   async function importGithub() {
     setPending(true);
     try {
-      await api.importGithub(repository.trim());
+      const requested = repository.trim() === "moralmaker/cursor-tools-releases" ? RELEASE_REPOSITORY : repository.trim();
+      setRepository(requested);
+      await api.importGithub(requested);
       await refresh();
     } catch (error) {
       onError(error instanceof Error ? error.message : "导入失败");

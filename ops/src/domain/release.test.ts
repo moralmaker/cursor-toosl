@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildTauriManifest, manifestFromGithubJson, opsAssetUrl, parseReleaseInput, pickLatestPublished } from "./release.ts";
+import {
+  buildTauriManifest,
+  manifestFromGithubJson,
+  opsAssetUrl,
+  parseGithubImport,
+  parseReleaseInput,
+  pickLatestPublished,
+} from "./release.ts";
 import { compareSemver, isSemver } from "./semver.ts";
 
 describe("semver", () => {
@@ -64,6 +71,15 @@ describe("release manifests", () => {
     const older = { ...release, version: "0.1.6", assets: [] };
     expect(pickLatestPublished([older, release])?.version).toBe("0.1.7");
     expect(pickLatestPublished([{ ...release, published: false }])).toBeNull();
+  });
+
+  it("imports the current source repository when the archived releases repository is submitted", () => {
+    expect(parseGithubImport({ repository: "moralmaker/cursor-tools-releases" })).toEqual({
+      value: { repository: "moralmaker/cursor-toosl" },
+    });
+    expect(parseGithubImport({ repository: " moralmaker/cursor-toosl " })).toEqual({
+      value: { repository: "moralmaker/cursor-toosl" },
+    });
   });
 
   it("rewrites GitHub asset URLs onto the ops accelerator", () => {
