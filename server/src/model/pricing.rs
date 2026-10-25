@@ -121,7 +121,15 @@ const CATALOG: &[CatalogEntry] = &[
         price: price(0.28, 0.42, 0.028, 0.0),
     },
     CatalogEntry {
+        id: "deepseek-flash",
+        price: price(0.3, 1.2, 0.006, 0.0),
+    },
+    CatalogEntry {
         id: "deepseek-v4-flash",
+        price: price(0.3, 1.2, 0.006, 0.0),
+    },
+    CatalogEntry {
+        id: "deepseek-v4.1-flash",
         price: price(0.3, 1.2, 0.006, 0.0),
     },
     CatalogEntry {
@@ -560,6 +568,17 @@ mod tests {
         assert_eq!(
             official_price("MiniMax-M3").unwrap().input_cost_per_million,
             0.30
+        );
+    }
+
+    #[test]
+    fn deepseek_flash_aliases_use_the_flash_price() {
+        let flash = official_price("deepseek-v4-flash").unwrap();
+        assert_eq!(official_price("deepseek-flash").unwrap(), flash);
+        assert_eq!(official_price("deepseek-v4.1-flash").unwrap(), flash);
+        assert_eq!(
+            official_price("deepseek/deepseek-v4.1-flash").unwrap(),
+            flash
         );
     }
 

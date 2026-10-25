@@ -57,6 +57,11 @@ export function Select({ value, options, disabled, ariaLabel, onChange }: { valu
   </>;
 }
 
+function comboboxText(option: string, labels?: Record<string, string>) {
+  const label = labels?.[option]?.trim();
+  return label && label !== option ? `${option} · ${label}` : option;
+}
+
 export type ComboboxHandle = {
   openAll: () => void;
 };
@@ -64,13 +69,14 @@ export type ComboboxHandle = {
 type ComboboxProps = {
   value: string;
   options?: string[];
+  labels?: Record<string, string>;
   placeholder?: string;
   disabled?: boolean;
   append?: ReactNode;
   onChange: (value: string) => void;
 };
 
-export const Combobox = forwardRef<ComboboxHandle, ComboboxProps>(function Combobox({ value, options = [], placeholder, disabled, append, onChange }, ref) {
+export const Combobox = forwardRef<ComboboxHandle, ComboboxProps>(function Combobox({ value, options = [], labels, placeholder, disabled, append, onChange }, ref) {
   const root = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -84,8 +90,8 @@ export const Combobox = forwardRef<ComboboxHandle, ComboboxProps>(function Combo
   const filtered = useMemo(() => {
     if (!filtering) return options;
     const query = value.trim().toLocaleLowerCase();
-    return options.filter((option) => !query || option.toLocaleLowerCase().includes(query));
-  }, [filtering, options, value]);
+    return options.filter((option) => !query || comboboxText(option, labels).toLocaleLowerCase().includes(query));
+  }, [filtering, labels, options, value]);
 
   useImperativeHandle(ref, () => ({
     openAll: () => {
@@ -122,7 +128,7 @@ export const Combobox = forwardRef<ComboboxHandle, ComboboxProps>(function Combo
     setFiltering(true);
     setOpen(true);
     const query = value.trim().toLocaleLowerCase();
-    const matchingOptions = options.filter((option) => !query || option.toLocaleLowerCase().includes(query));
+    const matchingOptions = options.filter((option) => !query || comboboxText(option, labels).toLocaleLowerCase().includes(query));
     const selected = matchingOptions.indexOf(value);
     setActive(selected >= 0 ? selected : 0);
   };
@@ -142,7 +148,7 @@ export const Combobox = forwardRef<ComboboxHandle, ComboboxProps>(function Combo
     <button type="button" className={styles.comboToggle} disabled={disabled} aria-label={t("打开模型列表")} aria-expanded={open} tabIndex={-1} onMouseDown={(event) => event.preventDefault()} onClick={() => { if (open) setOpen(false); else { openMenu(); input.current?.focus(); } }}><Icon icon={chevronDownIcon} size="1.1em" className={[styles.dropdownIcon, open && styles.dropdownIconOpen].filter(Boolean).join(" ")} /></button>
     {open && createPortal(<div id={menuId} ref={menu} className={styles.menu} role="listbox" style={{ left: position.left, top: position.top, width: position.width }}>
       <VirtualList items={filtered} itemKey={(option) => option} estimatedItemHeight={30} onReady={(api) => { listApi.current = api; if (active >= 0) api.scrollToIndex(active); }} style={{ height: Math.min(filtered.length * 30, Math.max(30, position.maxHeight - 8)) }}>
-        {(option, index) => <button type="button" role="option" aria-selected={option === value} data-active={index === active || undefined} onMouseEnter={() => setActive(index)} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(option)}>{option}</button>}
+        {(option, index) => <button type="button" role="option" aria-selected={option === value} data-active={index === active || undefined} onMouseEnter={() => setActive(index)} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(option)}>{comboboxText(option, labels)}</button>}
       </VirtualList>
     </div>, document.body)}
   </div>{append}</div>;

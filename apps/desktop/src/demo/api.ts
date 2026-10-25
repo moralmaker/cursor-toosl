@@ -112,7 +112,7 @@ export function installDemoApi() {
     if (path === "/models" && method === "GET") return json(models);
     if (path === "/models" && method === "POST") return json(models);
     if (path === "/models/order") return json(models);
-    if (path === "/models/discover") return json({ models: models.map((model) => model.model_id) });
+    if (path === "/models/discover") return json({ models: models.map((model) => ({ id: model.model_id, name: model.display_name })) });
     if (path === "/models/import-v0049" && method === "GET") {
       return json({ source: "demo", total: 0, new_models: 0, existing_models: 0, models: [] });
     }

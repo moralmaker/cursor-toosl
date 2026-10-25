@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, configuredPluginModels, type Model, type ModelInput } from "../../shared/api";
+import { api, configuredPluginModels, type DiscoveredModel, type Model, type ModelInput } from "../../shared/api";
 import { CursorCaGate, CursorCaProvider, CursorModelGate, CursorModelProvider } from "./CursorGates";
 import { CursorModelCards, cursorModelGroups, type CursorModelGroup, type CursorModelGrouping } from "./CursorModelCards";
 import { CursorModelEditor, emptyCursorModelDraft, type CursorModelDraft } from "./CursorModelEditor";
@@ -29,7 +29,7 @@ export function CursorSettingsPage() {
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const draftBaseline = useRef("");
   const [editing, setEditing] = useState<Model | null>(null);
-  const [modelOptions, setModelOptions] = useState<string[]>([]);
+  const [modelOptions, setModelOptions] = useState<DiscoveredModel[]>([]);
   const [discovering, setDiscovering] = useState(false);
   const [caCommand, setCaCommand] = useState<string | null>(null);
   const [waitingForCaRefresh, setWaitingForCaRefresh] = useState(false);
@@ -97,7 +97,7 @@ export function CursorSettingsPage() {
   };
   const openEdit = (model: Model) => {
     setEditing(model);
-    setModelOptions([model.model_id]);
+    setModelOptions([{ id: model.model_id, name: model.display_name }]);
     rememberDraft({
       providerId: `builtin/${model.type}`,
       model: modelInput(model),
@@ -118,7 +118,7 @@ export function CursorSettingsPage() {
         custom_headers_enabled: draft.model.custom_headers_enabled,
         custom_headers,
       });
-      setModelOptions([...new Set(result.models)]);
+      setModelOptions(result.models.filter((model, index, models) => models.findIndex((item) => item.id === model.id) === index));
       return true;
     } catch (cause) {
       message(errorText(cause));

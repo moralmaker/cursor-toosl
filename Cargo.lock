@@ -1228,7 +1228,7 @@ dependencies = [
 
 [[package]]
 name = "cursor-tools-desktop"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "axum",
  "cursor-server",

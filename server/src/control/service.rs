@@ -1,6 +1,6 @@
 //! Implements control API routing and shared state.
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     sync::{Arc, Mutex},
     time::Instant,
 };
@@ -46,9 +46,20 @@ pub struct ControlService {
     model_tests: Arc<Mutex<BTreeMap<String, CancellationToken>>>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct DiscoveredModel {
+    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context_window_tokens: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_output_tokens: Option<u64>,
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct DiscoveredModels {
-    pub models: Vec<String>,
+    pub models: Vec<DiscoveredModel>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -849,7 +860,7 @@ async fn discover_models_from_endpoint(
     api_key: &str,
     custom_headers: &serde_json::Value,
 ) -> Result<DiscoveredModels> {
-    let mut models = match provider_type {
+    let models = match provider_type {
         ProviderType::OpenAiChat | ProviderType::OpenAiResponses => {
             openai_models(client, base_url, api_key, custom_headers).await?
         }
@@ -862,9 +873,9 @@ async fn discover_models_from_endpoint(
             ))
         }
     };
-    models.sort();
-    models.dedup();
-    Ok(DiscoveredModels { models })
+    Ok(DiscoveredModels {
+        models: normalize_discovered(models),
+    })
 }
 
 fn model_discovery_url(base_url: &str) -> Result<Url> {
@@ -946,7 +957,7 @@ async fn openai_models(
     base_url: &str,
     api_key: &str,
     custom_headers: &serde_json::Value,
-) -> Result<Vec<String>> {
+) -> Result<Vec<DiscoveredModel>> {
     let mut last_error = None;
     for url in model_discovery_urls(base_url)? {
         match openai_models_at(client, url, api_key, custom_headers).await {
@@ -962,7 +973,7 @@ async fn openai_models_at(
     url: Url,
     api_key: &str,
     custom_headers: &serde_json::Value,
-) -> Result<Vec<String>> {
+) -> Result<Vec<DiscoveredModel>> {
     let mut request = client.get(url);
     if !api_key.is_empty() {
         request = request.bearer_auth(api_key);
@@ -985,7 +996,7 @@ async fn anthropic_models(
     base_url: &str,
     api_key: &str,
     custom_headers: &serde_json::Value,
-) -> Result<Vec<String>> {
+) -> Result<Vec<DiscoveredModel>> {
     let mut last_error = None;
     for url in model_discovery_urls(base_url)? {
         match anthropic_models_at(client, url, api_key, custom_headers).await {
@@ -1001,9 +1012,9 @@ async fn anthropic_models_at(
     url: Url,
     api_key: &str,
     custom_headers: &serde_json::Value,
-) -> Result<Vec<String>> {
+) -> Result<Vec<DiscoveredModel>> {
     let mut after_id = None::<String>;
-    let mut found = BTreeSet::new();
+    let mut found = Vec::new();
     loop {
         let mut request = client
             .get(url.clone())
@@ -1042,21 +1053,79 @@ async fn anthropic_models_at(
     Ok(found.into_iter().collect())
 }
 
-fn model_ids(value: &serde_json::Value) -> Vec<String> {
+fn model_ids(value: &serde_json::Value) -> Vec<DiscoveredModel> {
     value
         .as_array()
         .into_iter()
         .flatten()
-        .filter_map(|item| match item {
-            serde_json::Value::String(id) => Some(id.clone()),
-            serde_json::Value::Object(object) => object
+        .filter_map(discovered_model)
+        .collect()
+}
+
+fn discovered_model(item: &serde_json::Value) -> Option<DiscoveredModel> {
+    match item {
+        serde_json::Value::String(id) => Some(DiscoveredModel {
+            id: id.clone(),
+            name: None,
+            context_window_tokens: None,
+            max_output_tokens: None,
+        }),
+        serde_json::Value::Object(object) => {
+            let id = object
                 .get("id")
                 .or_else(|| object.get("name"))
+                .and_then(serde_json::Value::as_str)?
+                .trim();
+            if id.is_empty() {
+                return None;
+            }
+            let name = object
+                .get("name")
                 .and_then(serde_json::Value::as_str)
-                .map(str::to_owned),
-            _ => None,
-        })
-        .collect()
+                .map(str::trim)
+                .filter(|name| !name.is_empty() && *name != id)
+                .map(str::to_owned);
+            Some(DiscoveredModel {
+                id: id.to_owned(),
+                name,
+                context_window_tokens: json_u64(object.get("context_window")),
+                max_output_tokens: json_u64(object.get("max_output_tokens")),
+            })
+        }
+        _ => None,
+    }
+}
+
+fn json_u64(value: Option<&serde_json::Value>) -> Option<u64> {
+    value.and_then(serde_json::Value::as_u64).filter(|value| *value > 0)
+}
+
+fn normalize_discovered(models: Vec<DiscoveredModel>) -> Vec<DiscoveredModel> {
+    let mut models = models
+        .into_iter()
+        .filter(|model| !model.id.is_empty())
+        .collect::<Vec<_>>();
+    models.sort_by(|left, right| left.id.cmp(&right.id));
+    let mut merged = Vec::new();
+    for model in models {
+        if let Some(previous) = merged
+            .last_mut()
+            .filter(|previous: &&mut DiscoveredModel| previous.id == model.id)
+        {
+            if previous.name.is_none() {
+                previous.name = model.name;
+            }
+            if previous.context_window_tokens.is_none() {
+                previous.context_window_tokens = model.context_window_tokens;
+            }
+            if previous.max_output_tokens.is_none() {
+                previous.max_output_tokens = model.max_output_tokens;
+            }
+        } else {
+            merged.push(model);
+        }
+    }
+    merged
 }
 
 fn estimate_output_tokens(output: &str) -> u64 {
@@ -1091,4 +1160,36 @@ fn apply_discovery_headers(
         request = request.header(name, value);
     }
     Ok(request)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{model_ids, normalize_discovered};
+
+    #[test]
+    fn deepseek_model_list_keeps_the_v4_1_display_name() {
+        let body = serde_json::json!({
+            "object": "list",
+            "data": [
+                {
+                    "id": "deepseek-flash",
+                    "name": "DeepSeek-V4.1-Flash",
+                    "context_window": 1_048_576,
+                    "max_output_tokens": 393_216
+                },
+                {
+                    "id": "deepseek-v4-pro",
+                    "name": "DeepSeek-V4-Pro",
+                    "context_window": 1_048_576,
+                    "max_output_tokens": 393_216
+                }
+            ]
+        });
+        let models = normalize_discovered(model_ids(body.get("data").unwrap()));
+        assert_eq!(models[0].id, "deepseek-flash");
+        assert_eq!(models[0].name.as_deref(), Some("DeepSeek-V4.1-Flash"));
+        assert_eq!(models[0].context_window_tokens, Some(1_048_576));
+        assert_eq!(models[0].max_output_tokens, Some(393_216));
+        assert_eq!(models[1].id, "deepseek-v4-pro");
+    }
 }

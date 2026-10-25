@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, type ModelInput, type ModelTokenPrice, type ModelType, type OfficialModelPrice } from "../../shared/api";
+import { api, type DiscoveredModel, type ModelInput, type ModelTokenPrice, type ModelType, type OfficialModelPrice } from "../../shared/api";
 import { defaultCustomHeadersText } from "../../shared/utils/modelDefaults";
 import { modelPresets, presetEndpoint, trimTrailingSlash, type ModelPreset } from "../../shared/utils/modelPresets";
 import { Button } from "../../shared/ui/Button";
@@ -55,7 +55,7 @@ export const emptyCursorModelDraft = (): CursorModelDraft => ({
 
 export function CursorModelEditor({ draft, modelOptions, discovering, onChange, onDiscover }: {
   draft: CursorModelDraft;
-  modelOptions: string[];
+  modelOptions: DiscoveredModel[];
   discovering: boolean;
   onChange: (draft: CursorModelDraft) => void;
   onDiscover: () => Promise<boolean>;
@@ -96,10 +96,34 @@ export function CursorModelEditor({ draft, modelOptions, discovering, onChange, 
   const numberValue = (value: string) => value === "" ? null : Math.trunc(Number(value));
   const canDiscover = Boolean(draft.model.base_url.trim() && draft.model.api_key.trim());
   // 选中预设后，把该服务商已知的模型 id 并入下拉，方便直接选（仍可用「获取模型」发现）
-  const presetModelOptions = modelPresets
+  const presetModels = modelPresets
     .filter((preset) => trimTrailingSlash(presetEndpoint(preset, draft.model.type).baseUrl) === trimTrailingSlash(draft.model.base_url.trim()))
-    .flatMap((preset) => preset.models.map((item) => item.model_id));
-  const combinedOptions = [...new Set([...modelOptions, ...presetModelOptions])];
+    .flatMap((preset) => preset.models);
+  const combinedOptions = [...new Set([
+    ...modelOptions.map((model) => model.id),
+    ...presetModels.map((model) => model.model_id),
+  ])];
+  const modelLabels = Object.fromEntries(combinedOptions.flatMap((id) => {
+    const name = modelOptions.find((model) => model.id === id)?.name?.trim()
+      || presetModels.find((model) => model.model_id === id)?.display_name;
+    return name && name !== id ? [[id, name]] : [];
+  }));
+  const chooseModel = (model_id: string) => {
+    const discovered = modelOptions.find((model) => model.id === model_id);
+    const preset = presetModels.find((model) => model.model_id === model_id);
+    const name = discovered?.name?.trim() || preset?.display_name;
+    const replaceDisplay = !draft.model.display_name || draft.model.display_name === draft.model.model_id;
+    const context = discovered?.context_window_tokens || preset?.context_window_tokens;
+    const maxOutput = discovered?.max_output_tokens || preset?.max_output_tokens;
+    setModel({
+      model_id,
+      ...(replaceDisplay ? { display_name: name || model_id } : {}),
+      ...(context ? { context_window_tokens: context } : {}),
+      ...(maxOutput ? draft.model.type === "openai"
+        ? { max_completion_tokens: maxOutput }
+        : { anthropic_max_tokens: maxOutput } : {}),
+    });
+  };
   const discoverModels = async () => {
     if (await onDiscover()) modelCombobox.current?.openAll();
   };
@@ -165,7 +189,7 @@ export function CursorModelEditor({ draft, modelOptions, discovering, onChange, 
       </div>
       <FormField label="API Key" hint={t("访问模型服务所需的密钥。")}> <SecretTextInput placeholder="sk-xxxxxx" autoComplete="off" value={draft.model.api_key} onChange={(event) => setModel({ api_key: event.target.value })} /></FormField>
 
-      <FormField label={t("模型名称")} hint={t("可以直接输入模型标识，也可以读取接口返回的模型列表。")}><Combobox ref={modelCombobox} value={draft.model.model_id} options={combinedOptions} placeholder="gpt-5" append={<Button className={styles.discoverButton} disabled={discovering || !canDiscover} onClick={() => void discoverModels()}>{discovering ? t("获取中…") : t("获取模型")}</Button>} onChange={(model_id) => setModel({ model_id, display_name: draft.model.display_name || model_id })} /></FormField>
+      <FormField label={t("模型名称")} hint={t("可以直接输入模型标识，也可以读取接口返回的模型列表。")}><Combobox ref={modelCombobox} value={draft.model.model_id} options={combinedOptions} labels={modelLabels} placeholder="gpt-5" append={<Button className={styles.discoverButton} disabled={discovering || !canDiscover} onClick={() => void discoverModels()}>{discovering ? t("获取中…") : t("获取模型")}</Button>} onChange={chooseModel} /></FormField>
       <FormField label={t("显示名称")} hint={t("仅用于界面展示，不会改变发送给模型服务的模型名称。")}> <TextInput placeholder={t("例如：主力模型")} value={draft.model.display_name} onChange={(event) => setModel({ display_name: event.target.value })} /></FormField>
       <ModelPriceFields
         pending={catalog === null}

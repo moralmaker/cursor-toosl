@@ -94,8 +94,9 @@ export const modelPresets: ModelPreset[] = [
       openai: openaiChat("https://api.deepseek.com"),
     },
     models: [
-      entry("deepseek-v4-pro", "DeepSeek V4 Pro", 1000000, 65536),
-      entry("deepseek-v4-flash", "DeepSeek V4 Flash", 1000000, null),
+      entry("deepseek-flash", "DeepSeek V4.1 Flash", 1048576, 393216),
+      entry("deepseek-v4-pro", "DeepSeek V4 Pro", 1048576, 393216),
+      entry("deepseek-v4-flash", "DeepSeek V4 Flash", 1048576, 393216),
     ],
   },
   {

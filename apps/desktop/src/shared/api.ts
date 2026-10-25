@@ -82,6 +82,13 @@ export interface ModelDiscoveryInput {
   custom_headers: Record<string, string>;
 }
 
+export interface DiscoveredModel {
+  id: string;
+  name?: string | null;
+  context_window_tokens?: number | null;
+  max_output_tokens?: number | null;
+}
+
 export interface LegacyModelImportPreviewItem {
   model_hash: string;
   display_name: string;
@@ -533,7 +540,7 @@ export const api = {
   modelPrices: () => request<OfficialModelPrice[]>("/models/prices"),
   createModels: (models: ModelInput[]) => request<Model[]>("/models", { method: "POST", body: JSON.stringify({ models }) }),
   reorderModels: (modelHashes: string[]) => request<Model[]>("/models/order", { method: "PUT", body: JSON.stringify({ model_hashes: modelHashes }) }),
-  discoverModels: (input: ModelDiscoveryInput) => request<{ models: string[] }>("/models/discover", { method: "POST", body: JSON.stringify(input) }),
+  discoverModels: (input: ModelDiscoveryInput) => request<{ models: DiscoveredModel[] }>("/models/discover", { method: "POST", body: JSON.stringify(input) }),
   previewV0049Models: () => request<LegacyModelImportPreview>("/models/import-v0049"),
   importV0049Models: () => request<LegacyModelImportResult>("/models/import-v0049", { method: "POST" }),
   updateModel: (hash: string, model: ModelInput) => request<Model>(`/models/${hash}`, { method: "PUT", body: JSON.stringify(model) }),
