@@ -8,11 +8,10 @@ on:
 permissions:
   contents: read
 
-# The source repository is private; Releases go to this public repository so
-# updater clients can download manifests and bundles anonymously.
+# Releases are published on this public repository. Updater clients download
+# manifests from ops first, then from this repository's latest release.
 env:
-  RELEASE_OWNER: moralmaker
-  RELEASE_REPO: cursor-tools-releases
+  RELEASE_REPOSITORY: ${{ github.repository }}
 
 concurrency:
   group: desktop-release
@@ -43,15 +42,10 @@ jobs:
       - name: Verify release secrets
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          RELEASES_REPO_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
         shell: bash
         run: |
           if [[ -z "${TAURI_SIGNING_PRIVATE_KEY}" ]]; then
             echo "TAURI_SIGNING_PRIVATE_KEY is not configured" >&2
-            exit 1
-          fi
-          if [[ -z "${RELEASES_REPO_TOKEN}" ]]; then
-            echo "RELEASES_REPO_TOKEN is not configured" >&2
             exit 1
           fi
 
@@ -76,11 +70,11 @@ jobs:
       - name: Check whether this version is already published
         id: release
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
         shell: bash
         run: |
-          state=$(gh release view "v${VERSION}" --repo "${RELEASE_OWNER}/${RELEASE_REPO}" --json isDraft --jq 'if .isDraft then "draft" else "published" end' 2>/dev/null || true)
+          state=$(gh release view "v${VERSION}" --repo "${RELEASE_REPOSITORY}" --json isDraft --jq 'if .isDraft then "draft" else "published" end' 2>/dev/null || true)
           if [[ "${state}" = "published" ]]; then
             echo "Version ${VERSION} is already published; nothing to do."
             echo "should_publish=false" >> "${GITHUB_OUTPUT}"
@@ -92,6 +86,8 @@ jobs:
     name: Publish (${{ matrix.platform }})
     needs: prepare
     if: needs.prepare.outputs.should_publish == 'true'
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -146,14 +142,12 @@ jobs:
 
       - uses: tauri-apps/tauri-action@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ contains(matrix.platform, 'macos') && '-' || '' }}
         with:
           projectPath: apps/desktop
-          owner: ${{ env.RELEASE_OWNER }}
-          repo: ${{ env.RELEASE_REPO }}
           releaseCommitish: main
           tagName: v__VERSION__
           releaseName: Cursor TOOLS v__VERSION__
@@ -220,13 +214,13 @@ jobs:
     needs: [prepare, publish]
     if: needs.prepare.outputs.should_publish == 'true' && needs.publish.result == 'success'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
-      GH_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Target the public release repository
-        run: echo "GH_REPO=${RELEASE_OWNER}/${RELEASE_REPO}" >> "${GITHUB_ENV}"
 
       - uses: actions/download-artifact@v4
         with:

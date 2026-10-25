@@ -7,10 +7,10 @@ cursor-tools is a local implementation of Cursor's backend.
 
 [User Guide](https://ops.susuan.ai/download/guide.html) · [Download](https://ops.susuan.ai/download/) · [Report an Issue](https://github.com/moralmaker/cursor-toosl/issues) · [中文版本说明](./README-CN.md)
 
-[![Release](https://img.shields.io/github/v/release/moralmaker/cursor-tools-releases?style=flat-square)](https://github.com/moralmaker/cursor-tools-releases/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/moralmaker/cursor-tools-releases/total?style=flat-square)](https://github.com/moralmaker/cursor-tools-releases/releases)
+[![Release](https://img.shields.io/github/v/release/moralmaker/cursor-toosl?style=flat-square)](https://github.com/moralmaker/cursor-toosl/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/moralmaker/cursor-toosl/total?style=flat-square)](https://github.com/moralmaker/cursor-toosl/releases)
 [![License](https://img.shields.io/github/license/moralmaker/cursor-toosl?style=flat-square)](./LICENSE)
-[![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey?style=flat-square)](https://github.com/moralmaker/cursor-tools-releases/releases/latest)
+[![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey?style=flat-square)](https://github.com/moralmaker/cursor-toosl/releases/latest)
 
 </div>
 
@@ -41,7 +41,7 @@ You can connect OpenAI- and Anthropic-compatible services, customize endpoints, 
 
 ## Quick Start
 
-1. Open the [download page](https://ops.susuan.ai/download/) and get the build for your device (or use [GitHub Releases](https://github.com/moralmaker/cursor-tools-releases/releases/latest)).
+1. Open the [download page](https://ops.susuan.ai/download/) and get the build for your device (or use [GitHub Releases](https://github.com/moralmaker/cursor-toosl/releases/latest)).
 2. Launch cursor-tools, open **Cursor Settings**, and initialize the local CA when prompted.
 3. Open **Model Settings**, add a model with its endpoint, API key, and model ID, then run **Test**.
 4. Once the test passes, keep cursor-tools running.

@@ -9,12 +9,11 @@
 | [external-apis.md](./external-apis.md) | 出站广告、TAB、模型通道、更新清单等外部接口契约 |
 | [ops/README.md](../ops/README.md) | Cloudflare Worker：广告、更新清单、下载页、管理台部署细节 |
 
-当前桌面版本以清单为准（现为 **1.1.0**）。
+当前桌面版本以清单为准（现为 **1.1.2**，标签已打，安装包尚未发出）。
 
 | 仓库 | 可见性 | 用途 |
 | --- | --- | --- |
-| `moralmaker/cursor-toosl` | 私有 | 源码、CI、发版工作流 |
-| `moralmaker/cursor-tools-releases` | 公开 | 安装包与更新清单（用户与客户端匿名下载） |
+| `moralmaker/cursor-toosl` | 公开 | 源码、CI、发版工作流、安装包与更新清单 |
 
 ---
 
@@ -61,10 +60,10 @@ apps/desktop + server/          ← 本机进程；密钥与配置落本地 SQLi
 | 更新日志 | https://ops.susuan.ai/download/changelog/ | 各版本更新记录；详情 `/download/changelog/{version}/` |
 | 运营后台 | https://ops.susuan.ai/admin/ | 广告位、Release 导入、下载统计、审计；`noindex` |
 | 更新清单（优先） | https://ops.susuan.ai/api/v1/updates/latest.json | Tauri updater 第一端点 |
-| 更新清单（回退） | GitHub `cursor-tools-releases` 的 `latest.json` | ops 不可用时 |
+| 更新清单（回退） | GitHub `cursor-toosl` 的 `latest.json` | ops 不可用时 |
 | 便携更新 | https://ops.susuan.ai/api/v1/updates/portable-latest.json | Windows 便携版 |
 | 安装包加速 | https://ops.susuan.ai/api/v1/updates/assets/:name | R2 托管，避免直连 GitHub 过慢 |
-| 公开 Releases | https://github.com/moralmaker/cursor-tools-releases/releases/latest | 源安装包与清单归档 |
+| 公开 Releases | https://github.com/moralmaker/cursor-toosl/releases/latest | 源安装包与清单归档 |
 | 公益 TAB | https://tab.susuan.ai | 与 ops 无关，见 `crates/tab-server` |
 
 桌面端 updater 端点顺序见 `apps/desktop/src-tauri/tauri.conf.json`：先 ops，再 GitHub。
@@ -119,7 +118,7 @@ npm run dev                      # http://127.0.0.1:8787/admin/ 、/download/
 
 ### 3.1 发版后如何让客户端走加速更新
 
-1. GitHub Actions 把安装包发到公开仓库 `cursor-tools-releases`。
+1. GitHub Actions 把安装包发到公开仓库 `cursor-toosl`。
 2. 登录运营台 → Releases，从 GitHub 导入该版本（或 `POST /api/admin/releases/import-github`）。
 3. 导入会把资产 URL 改写为 `https://ops.susuan.ai/api/v1/updates/assets/<文件名>`。文件本身要用 `wrangler r2 object put` 放进 `cursor-tools-ops-releases`，否则加速地址是 404。
 4. 已安装客户端优先拉 ops 的 `latest.json`；ops 未导入时仍可回退 GitHub。
@@ -261,12 +260,11 @@ protocols/cursor/aiserver_v1.proto
 2. `tauri.conf.json` 里 updater `pubkey` 与仓库 `.tauri/cursor-tools.key.pub` 一致。**不要**打印、提交或上传 `.tauri/cursor-tools.key`。
 3. 源码仓库 GitHub Actions Secrets 已有：
    - `TAURI_SIGNING_PRIVATE_KEY`（本地密钥无密码时**不要**配 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`）
-   - `RELEASES_REPO_TOKEN`：只授权 `moralmaker/cursor-tools-releases`、Contents: Read and write 的 fine-grained token
 4. 目标标签和同名 Release 都不存在：
 
 ```bash
 git ls-remote --tags origin 'v1.0.2'
-gh release view v1.0.2 --repo moralmaker/cursor-tools-releases
+gh release view v1.0.2 --repo moralmaker/cursor-toosl
 ```
 
 后者报 `release not found` 才是预期。
@@ -344,14 +342,14 @@ gh run watch
 ```text
 prepare
   ├── GITHUB_ACTOR == 仓库所有者
-  ├── Secret TAURI_SIGNING_PRIVATE_KEY、RELEASES_REPO_TOKEN 非空
+  ├── Secret TAURI_SIGNING_PRIVATE_KEY 非空
   ├── 三个清单 version 相同，且标签 == v<version>
   ├── 该 commit 是 origin/main 的祖先
   └── 若 v<version> 已是正式 Release → 整次跳过（不重发）
 
 publish（每端）
   ├── npm ci && tauri-action@v1
-  │     在公开仓库 cursor-tools-releases 创建 draft Release
+  │     在 cursor-toosl 创建 draft Release
   │     上传该端安装包、.sig、latest.json
   └── 额外打旧客户端更新包到 artifact
         Linux / Windows / macOS arm64 / macOS x64
@@ -394,7 +392,7 @@ finalize
 | `cursor-tools-<ver>-linux-amd64.tar.gz` | Linux 可执行文件 |
 
 ```bash
-gh api repos/moralmaker/cursor-tools-releases/releases/latest \
+gh api repos/moralmaker/cursor-toosl/releases/latest \
   --jq '{tag:.tag_name,draft:.draft,prerelease:.prerelease,assets:[.assets[].name]}'
 ```
 
@@ -432,7 +430,7 @@ gh api repos/moralmaker/cursor-tools-releases/releases/latest \
 | `tag ...` 与 version 不一致 | 标签必须是 `v` + 清单 version |
 | `Only ... may publish a release` | 不是仓库所有者推的标签 |
 | `TAURI_SIGNING_PRIVATE_KEY is not configured` | 在源码仓库 Secrets 写入正式私钥 |
-| `RELEASES_REPO_TOKEN` 缺失 / 创建 Release 403 | 写入对 `cursor-tools-releases` 有 Contents 写权限的 token |
+| 创建 Release 403 | 工作流对 `cursor-toosl` 需要 `contents: write`；用仓库的 `GITHUB_TOKEN`，不要再配单独的 releases token |
 | `Version ... is already published; nothing to do` | 该号已发过，升号 |
 | 一端红、Release 停在 draft | 看该 matrix job 日志；修好后升号重打 |
 | 本机装包能开，应用内提示更新失败 | 本机用的是 `.local.key`，和线上公钥不是一对 |

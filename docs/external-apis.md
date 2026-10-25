@@ -233,7 +233,7 @@ TAB 模式：
 
 ```
 GET https://ops.susuan.ai/api/v1/updates/latest.json
-GET https://github.com/moralmaker/cursor-tools-releases/releases/latest/download/latest.json
+GET https://github.com/moralmaker/cursor-toosl/releases/latest/download/latest.json
 ```
 
 无鉴权。发布流水线生成，形状为 Tauri updater manifest：
@@ -246,7 +246,7 @@ GET https://github.com/moralmaker/cursor-tools-releases/releases/latest/download
   "platforms": {
     "<tauri-platform-key>": {
       "signature": "<minisign 签名原文>",
-      "url": "https://github.com/moralmaker/cursor-tools-releases/releases/download/v0.1.7/<asset>"
+      "url": "https://github.com/moralmaker/cursor-toosl/releases/download/v0.1.7/<asset>"
     }
   }
 }
@@ -268,7 +268,7 @@ GET https://ops.susuan.ai/api/v1/updates/portable-latest.json
   "platforms": {
     "windows-x86_64": {
       "signature": "<签名>",
-      "url": "https://github.com/moralmaker/cursor-tools-releases/releases/download/v0.1.7/cursor-tools-desktop.exe"
+      "url": "https://github.com/moralmaker/cursor-toosl/releases/download/v0.1.7/cursor-tools-desktop.exe"
     }
   }
 }

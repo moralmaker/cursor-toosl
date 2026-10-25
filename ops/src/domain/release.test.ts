@@ -70,7 +70,7 @@ describe("release manifests", () => {
     expect(
       opsAssetUrl(
         "https://ops.susuan.ai",
-        "https://github.com/moralmaker/cursor-tools-releases/releases/download/v1.1.0/Cursor.Tools_1.1.0_amd64.deb",
+        "https://github.com/moralmaker/cursor-toosl/releases/download/v1.1.0/Cursor.Tools_1.1.0_amd64.deb",
       ),
     ).toBe("https://ops.susuan.ai/api/v1/updates/assets/Cursor.Tools_1.1.0_amd64.deb");
     expect(opsAssetUrl("https://ops.susuan.ai", "https://ops.susuan.ai/api/v1/updates/assets/already.deb")).toBe(

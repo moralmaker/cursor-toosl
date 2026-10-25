@@ -10,7 +10,7 @@ export function ReleasesPage({ onError }: ReleasesPageProps) {
   const [editing, setEditing] = useState<{ version?: string; draft: ReleaseDraft } | null>(null);
   const [pending, setPending] = useState(false);
   const [removing, setRemoving] = useState<ReleaseRecord | null>(null);
-  const [repository, setRepository] = useState("moralmaker/cursor-tools-releases");
+  const [repository, setRepository] = useState("moralmaker/cursor-toosl");
 
   async function refresh() {
     setReleases((await api.releases()).releases);
