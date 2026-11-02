@@ -6,6 +6,12 @@ pub mod agent {
     }
 }
 
+pub mod inference {
+    pub mod v1 {
+        include!(concat!(env!("OUT_DIR"), "/inference.v1.rs"));
+    }
+}
+
 pub mod aiserver {
     pub mod v1 {
         #[derive(Clone, PartialEq, ::prost::Message)]

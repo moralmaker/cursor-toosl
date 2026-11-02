@@ -160,23 +160,53 @@ pub fn decode(request: &ai::BidiAppendRequest) -> Result<DecodedAppend> {
         .map(|id| id.request_id.as_str())
         .filter(|id| !id.is_empty())
         .ok_or_else(|| Error::Protocol("BidiAppend request_id is required".into()))?;
-    if !request.data_binary.is_empty() {
-        return Err(Error::Protocol(
-            "BidiAppend data_binary is not part of the captured protocol".into(),
-        ));
-    }
-    if request.data.is_empty() {
+    let payload = if !request.data_binary.is_empty() {
+        request.data_binary.clone()
+    } else if !request.data.is_empty() {
+        hex::decode(&request.data)
+            .map_err(|error| Error::Protocol(format!("invalid BidiAppend hex: {error}")))?
+    } else {
         return Err(Error::Protocol(
             "BidiAppend contains no AgentClientMessage".into(),
         ));
-    }
-    let payload = hex::decode(&request.data)
-        .map_err(|error| Error::Protocol(format!("invalid BidiAppend hex: {error}")))?;
+    };
     Ok(DecodedAppend {
         request_id: request_id.into(),
         seqno: request.append_seqno,
-        message: agent::AgentClientMessage::decode(payload.as_slice())?,
+        message: decode_agent_client(&payload)?,
     })
+}
+
+/// Cursor 3.27's HTTP fallback sends the bare `AgentRunRequest` in
+/// `BidiAppend.data`. Reading those bytes as `AgentClientMessage` treats field 1
+/// (the conversation state) as a nested run, then tries to parse its blob ids as
+/// another conversation state.
+fn decode_agent_client(payload: &[u8]) -> Result<agent::AgentClientMessage> {
+    match agent::AgentClientMessage::decode(payload) {
+        Ok(message) => Ok(message),
+        Err(client_error) => match agent::AgentRunRequest::decode(payload) {
+            Ok(run) if run_request_is_addressable(&run) => Ok(agent::AgentClientMessage {
+                message: Some(agent::agent_client_message::Message::RunRequest(run)),
+            }),
+            _ => Err(client_error.into()),
+        },
+    }
+}
+
+fn run_request_is_addressable(run: &agent::AgentRunRequest) -> bool {
+    let requested = run
+        .requested_model
+        .as_ref()
+        .is_some_and(|model| !model.model_id.is_empty());
+    let details = run
+        .model_details
+        .as_ref()
+        .is_some_and(|model| !model.model_id.is_empty());
+    let conversation = run
+        .conversation_id
+        .as_ref()
+        .is_some_and(|id| !id.is_empty());
+    requested || details || conversation
 }
 
 pub async fn append(
@@ -208,4 +238,78 @@ pub async fn append(
         })
         .await?;
     Ok(ai::BidiAppendResponse {})
+}
+
+#[cfg(test)]
+mod tests {
+    use prost::Message;
+
+    use super::*;
+
+    fn run_with_blob() -> agent::AgentRunRequest {
+        agent::AgentRunRequest {
+            conversation_state: Some(agent::ConversationStateStructure {
+                root_prompt_messages_json: vec![vec![0x16; 32]],
+                turns: vec![vec![0x16; 32]],
+                ..Default::default()
+            }),
+            requested_model: Some(agent::RequestedModel {
+                model_id: "9d6cc56b55f933e8".into(),
+                ..Default::default()
+            }),
+            conversation_id: Some("conv-1".into()),
+            ..Default::default()
+        }
+    }
+
+    fn append(payload: &[u8], binary: bool) -> ai::BidiAppendRequest {
+        ai::BidiAppendRequest {
+            data: if binary {
+                String::new()
+            } else {
+                hex::encode(payload)
+            },
+            request_id: Some(ai::BidiRequestId {
+                request_id: "request-1".into(),
+            }),
+            append_seqno: 0,
+            data_binary: if binary { payload.to_vec() } else { Vec::new() },
+        }
+    }
+
+    #[test]
+    fn decodes_bare_agent_run_request_from_hex_or_binary() {
+        let payload = run_with_blob().encode_to_vec();
+        for binary in [false, true] {
+            let decoded = decode(&append(&payload, binary)).expect("bare run request");
+            assert_eq!(decoded.model_id(), Some("9d6cc56b55f933e8"));
+            assert_eq!(decoded.conversation_id(), Some("conv-1"));
+        }
+    }
+
+    #[test]
+    fn decodes_wrapped_agent_client_message() {
+        let client = agent::AgentClientMessage {
+            message: Some(agent::agent_client_message::Message::RunRequest(
+                run_with_blob(),
+            )),
+        };
+        let decoded = decode(&append(&client.encode_to_vec(), false)).expect("wrapped message");
+        assert_eq!(decoded.model_id(), Some("9d6cc56b55f933e8"));
+    }
+
+    #[test]
+    fn does_not_promote_a_bare_run_that_has_no_model_or_conversation() {
+        let run = agent::AgentRunRequest {
+            conversation_state: Some(agent::ConversationStateStructure {
+                root_prompt_messages_json: vec![vec![0x16; 32]],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        match decode(&append(&run.encode_to_vec(), false)) {
+            Err(error) => assert!(error.to_string().contains("protobuf decode error")),
+            Ok(_) => panic!("unaddressed run must stay a decode error"),
+        }
+    }
 }

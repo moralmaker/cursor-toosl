@@ -10,7 +10,7 @@ use tower_http::decompression::RequestDecompressionLayer;
 
 use crate::{
     api::cursor::{
-        bidi,
+        bidi, inference,
         proxy::{self, CursorProxy},
         run_sse,
     },
@@ -47,6 +47,10 @@ fn router_with_proxy(
     Router::new()
         .route("/__tools-api__/healthz", get(health))
         .route("/agent.v1.AgentService/RunSSE", post(run_sse_handler))
+        .route(
+            "/aiserver.v1.InferenceService/RunInferenceSSE",
+            post(inference_sse_handler),
+        )
         .route("/aiserver.v1.BidiService/BidiAppend", post(bidi_handler))
         .route(
             "/aiserver.v1.AiService/AvailableDocs",
@@ -188,10 +192,27 @@ async fn is_connected() -> Result<Response<Body>> {
     Ok(response)
 }
 
+async fn inference_sse_handler(
+    State(registry): State<TransportRegistry>,
+    Extension(proxy): Extension<CursorProxy>,
+    request: Request<Body>,
+) -> Result<Response<Body>> {
+    open_run_stream(registry, proxy, request, true).await
+}
+
 async fn run_sse_handler(
     State(registry): State<TransportRegistry>,
     Extension(proxy): Extension<CursorProxy>,
     request: Request<Body>,
+) -> Result<Response<Body>> {
+    open_run_stream(registry, proxy, request, false).await
+}
+
+async fn open_run_stream(
+    registry: TransportRegistry,
+    proxy: CursorProxy,
+    request: Request<Body>,
+    connect_proto: bool,
 ) -> Result<Response<Body>> {
     let (parts, body) = buffered(request).await?;
     let request: agent::BidiRequestId = connect::decode_unary(&body)?;
@@ -205,7 +226,11 @@ async fn run_sse_handler(
     );
     match route {
         crate::cursor::transport::TransportRoute::Local => {
-            run_sse::stream(&registry, &request.request_id).await
+            if connect_proto {
+                run_sse::stream_connect(&registry, &request.request_id).await
+            } else {
+                run_sse::stream(&registry, &request.request_id).await
+            }
         }
         crate::cursor::transport::TransportRoute::Upstream(generation) => {
             let response = proxy::forward(
@@ -232,6 +257,25 @@ async fn bidi_handler(
 ) -> Result<Response<Body>> {
     let (parts, body) = buffered(request).await?;
     let request: ai::BidiAppendRequest = connect::decode_unary(&body)?;
+    if let Some(request_id) = inference::request_id(&request) {
+        // The run was already handed to Cursor. Later appends are inference
+        // sidecars; decoding them as AgentClientMessage returns the 400 that
+        // Cursor retries as "The server failed 4 times".
+        if registry.upstream(&request_id).await {
+            return proxy::forward(
+                Extension(proxy.clone()),
+                Request::from_parts(parts.clone(), Body::from(body.clone())),
+            )
+            .await;
+        }
+    }
+    if let Some(message) = inference::recognize(&request) {
+        return inference::append(&registry, proxy, parts, body, &request, message).await;
+    }
+    if inference::request_id(&request).is_some_and(|request_id| inference::has_session(&request_id))
+    {
+        return Ok(inference::acknowledge());
+    }
     let decoded = bidi::decode(&request)?;
     let first_model = decoded.model_id().map(str::to_owned);
     let conversation_id = decoded.conversation_id().map(str::to_owned);

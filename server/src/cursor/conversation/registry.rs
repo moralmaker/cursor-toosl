@@ -71,6 +71,10 @@ impl ConversationRegistry {
         &self.inner.dependencies
     }
 
+    pub fn provider(&self) -> Arc<dyn Provider> {
+        self.inner.dependencies.provider.clone()
+    }
+
     pub(crate) fn bind_transport(
         &self,
         handle: TransportHandle,
