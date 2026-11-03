@@ -129,7 +129,7 @@ impl AdRuntime {
         Ok(self)
     }
 
-    pub(super) async fn cache_images(&mut self, client: &reqwest::Client) {
+    pub(super) async fn cache_images(&mut self) {
         let cache_dir = match config::managed_data_dir() {
             Ok(path) => path.join("ads"),
             Err(error) => {
@@ -146,7 +146,7 @@ impl AdRuntime {
         let downloads = futures_util::future::join_all(urls.iter().map(|url| {
             let cache_dir = &cache_dir;
             async move {
-                let result = cache_image(client, cache_dir, url).await;
+                let result = cache_image(cache_dir, url).await;
                 (url, result)
             }
         }))
@@ -173,18 +173,54 @@ impl AdRuntime {
     }
 }
 
-async fn cache_image(client: &reqwest::Client, cache_dir: &FilePath, url: &str) -> Result<String> {
+async fn fetch_public_image(url: &str) -> Result<reqwest::Response> {
+    let mut current = url.to_string();
+    for _ in 0..5 {
+        let (target, addresses) = crate::search::resolve_public_http_url(&current)
+            .await
+            .map_err(|error| Error::Provider(error.to_string()))?;
+        let host = target
+            .host_str()
+            .ok_or_else(|| Error::Provider("advertisement image URL is missing a host".into()))?;
+        let mut builder = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .timeout(std::time::Duration::from_secs(10));
+        if matches!(target.host(), Some(url::Host::Domain(_))) {
+            builder = builder.resolve_to_addrs(host, &addresses);
+        }
+        let client = builder.build()?;
+        let response = client.get(target.clone()).send().await?;
+        if !response.status().is_redirection() {
+            return Ok(response);
+        }
+        let location = response
+            .headers()
+            .get(header::LOCATION)
+            .and_then(|value| value.to_str().ok())
+            .ok_or_else(|| {
+                Error::Provider("advertisement image redirect has no location".into())
+            })?;
+        current = target
+            .join(location)
+            .map_err(|error| {
+                Error::Provider(format!("invalid advertisement image redirect: {error}"))
+            })?
+            .to_string();
+    }
+    Err(Error::Provider(
+        "advertisement image redirected too many times".into(),
+    ))
+}
+
+async fn cache_image(cache_dir: &FilePath, url: &str) -> Result<String> {
     tokio::fs::create_dir_all(cache_dir).await?;
     let hash = hex::encode(Sha256::digest(url.as_bytes()));
     if let Some(file_name) = cached_file_name(cache_dir, &hash).await {
         return Ok(format!("{ADS_IMAGE_ROUTE}/{file_name}"));
     }
 
-    let response = client
-        .get(url)
-        .timeout(std::time::Duration::from_secs(10))
-        .send()
-        .await?;
+    let response = fetch_public_image(url).await?;
     if !response.status().is_success() {
         return Err(Error::Provider(format!(
             "advertisement image download failed ({})",
@@ -353,18 +389,6 @@ pub async fn dismiss(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    };
-
-    use axum::{
-        body::Body,
-        http::{header, Response},
-        routing::get,
-        Router,
-    };
-
     use super::*;
 
     #[test]
@@ -449,43 +473,29 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn downloads_an_ad_image_once_and_reuses_the_cache() {
-        let requests = Arc::new(AtomicUsize::new(0));
-        let request_counter = requests.clone();
-        let app = Router::new().route(
-            "/ad.png",
-            get(move || {
-                request_counter.fetch_add(1, Ordering::SeqCst);
-                async {
-                    Response::builder()
-                        .header(header::CONTENT_TYPE, "image/png")
-                        .body(Body::from(&b"cached image"[..]))
-                        .unwrap()
-                }
-            }),
-        );
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let address = listener.local_addr().unwrap();
-        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    async fn rejects_ad_images_on_private_addresses() {
         let root = tempfile::tempdir().unwrap();
-        let client = reqwest::Client::new();
-        let remote_url = format!("http://{address}/ad.png");
+        let error = cache_image(root.path(), "http://127.0.0.1/ad.png")
+            .await
+            .expect_err("loopback image");
+        assert!(error.to_string().contains("non-public"));
+        let error = cache_image(root.path(), "http://169.254.169.254/latest/meta-data")
+            .await
+            .expect_err("link-local image");
+        assert!(error.to_string().contains("non-public"));
+    }
 
-        let first = cache_image(&client, root.path(), &remote_url)
+    #[tokio::test]
+    async fn reuses_a_cached_public_ad_image_without_downloading() {
+        let root = tempfile::tempdir().unwrap();
+        let url = "https://cdn.example.com/ad.png";
+        let hash = hex::encode(Sha256::digest(url.as_bytes()));
+        let file_name = format!("{hash}.png");
+        tokio::fs::write(root.path().join(&file_name), b"cached image")
             .await
             .unwrap();
-        let second = cache_image(&client, root.path(), &remote_url)
-            .await
-            .unwrap();
 
-        assert_eq!(first, second);
-        assert!(first.starts_with(ADS_IMAGE_ROUTE));
-        assert_eq!(requests.load(Ordering::SeqCst), 1);
-        let file_name = first.rsplit('/').next().unwrap();
-        assert_eq!(
-            tokio::fs::read(root.path().join(file_name)).await.unwrap(),
-            b"cached image"
-        );
-        server.abort();
+        let cached = cache_image(root.path(), url).await.unwrap();
+        assert_eq!(cached, format!("{ADS_IMAGE_ROUTE}/{file_name}"));
     }
 }

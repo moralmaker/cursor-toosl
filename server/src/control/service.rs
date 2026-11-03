@@ -323,7 +323,7 @@ impl ControlService {
             )));
         }
         let mut runtime = response.json::<AdRuntime>().await?.into_menu_slots()?;
-        runtime.cache_images(&client).await;
+        runtime.cache_images().await;
         Ok(runtime)
     }
 
@@ -1097,7 +1097,9 @@ fn discovered_model(item: &serde_json::Value) -> Option<DiscoveredModel> {
 }
 
 fn json_u64(value: Option<&serde_json::Value>) -> Option<u64> {
-    value.and_then(serde_json::Value::as_u64).filter(|value| *value > 0)
+    value
+        .and_then(serde_json::Value::as_u64)
+        .filter(|value| *value > 0)
 }
 
 fn normalize_discovered(models: Vec<DiscoveredModel>) -> Vec<DiscoveredModel> {

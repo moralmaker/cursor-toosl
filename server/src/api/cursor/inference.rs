@@ -363,34 +363,114 @@ async fn stream_invocation(
         })
         .filter(|model| !model.is_empty())
         .unwrap_or(session.model_id);
-    let invocation = ModelInvocation {
-        call_id: format!("{request_id}:{invocation_id}"),
-        run_id: request_id.clone(),
-        conversation_id: session.conversation_id,
-        provider_call_index: 0,
-        request: ModelRequest {
-            prompt: PromptSpec {
-                instructions,
-                tools: invoke
-                    .request
-                    .as_ref()
-                    .map(inference_tools)
-                    .unwrap_or_default(),
-            },
-            model: ModelSpec::new(model_id),
-            history,
-        },
-    };
-    let mut stream = provider.stream(invocation, session.cancel.clone());
+    let tools = invoke
+        .request
+        .as_ref()
+        .map(inference_tools)
+        .unwrap_or_default();
+    let mut budget = input_budget(invoke.request.as_ref());
     let mut failed = None;
+    for attempt in 0..2 {
+        let fitted = fit_history(&instructions, &tools, &history, budget);
+        if fitted.len() < history.len() {
+            tracing::info!(
+                request_id,
+                kept = fitted.len(),
+                dropped = history.len() - fitted.len(),
+                budget,
+                "trimmed Cursor Inference history to fit the model context"
+            );
+        }
+        let invocation = ModelInvocation {
+            call_id: format!("{request_id}:{invocation_id}"),
+            run_id: request_id.clone(),
+            conversation_id: session.conversation_id.clone(),
+            provider_call_index: attempt,
+            request: ModelRequest {
+                prompt: PromptSpec {
+                    instructions: instructions.clone(),
+                    tools: tools.clone(),
+                },
+                model: ModelSpec::new(model_id.clone()),
+                history: fitted,
+            },
+        };
+        match drive_stream(
+            provider.clone(),
+            &handle,
+            &invocation_id,
+            invocation,
+            session.cancel.clone(),
+        )
+        .await?
+        {
+            StreamDrive::Completed => {
+                failed = None;
+                break;
+            }
+            StreamDrive::Failed { message, emitted } if !emitted && attempt == 0 => {
+                let Some(limit) = context_limit(&message) else {
+                    failed = Some(message);
+                    break;
+                };
+                let tighter = limit.saturating_sub(OUTPUT_RESERVE).max(4_096);
+                if tighter >= budget {
+                    failed = Some(message);
+                    break;
+                }
+                tracing::warn!(
+                    request_id,
+                    limit,
+                    budget = tighter,
+                    "Cursor Inference prompt exceeded the model context; retrying a shorter history"
+                );
+                budget = tighter;
+            }
+            StreamDrive::Failed { message, .. } => {
+                failed = Some(message);
+                break;
+            }
+        }
+    }
+    let end = pb::RunInferenceServerMessage {
+        message: Some(pb::run_inference_server_message::Message::InvocationEnd(
+            pb::RunInferenceInvocationEnd {
+                invocation_id,
+                error: failed.map(|message| pb::InvocationError { code: 1, message }),
+            },
+        )),
+    };
+    handle.emit_frame(connect::encode_message(&end)?);
+    Ok(())
+}
+
+const OUTPUT_RESERVE: u64 = 8_192;
+const DEFAULT_CONTEXT_TOKENS: u64 = 200_000;
+
+enum StreamDrive {
+    Completed,
+    Failed { message: String, emitted: bool },
+}
+
+async fn drive_stream(
+    provider: std::sync::Arc<dyn crate::provider::Provider>,
+    handle: &crate::cursor::transport::TransportHandle,
+    invocation_id: &str,
+    invocation: ModelInvocation,
+    cancel: CancellationToken,
+) -> Result<StreamDrive> {
+    let mut stream = provider.stream(invocation, cancel.clone());
+    let mut failed = None;
+    let mut emitted = false;
     let mut tool_calls = HashMap::<usize, PendingToolCall>::new();
     while let Some(event) = stream.next().await {
-        if session.cancel.is_cancelled() {
+        if cancel.is_cancelled() {
             break;
         }
         match event {
             Ok(ModelEvent::TextDelta(text)) if !text.is_empty() => {
-                emit_text(&handle, &invocation_id, &text, false)?;
+                emit_text(handle, invocation_id, &text, false)?;
+                emitted = true;
             }
             Ok(ModelEvent::ToolCallStart {
                 index,
@@ -413,7 +493,8 @@ async fn stream_invocation(
             }
             Ok(ModelEvent::ToolCallEnd { index }) => {
                 if let Some(call) = tool_calls.remove(&index) {
-                    emit_tool_call(&handle, &invocation_id, index, &call)?;
+                    emit_tool_call(handle, invocation_id, index, &call)?;
+                    emitted = true;
                 }
             }
             Ok(ModelEvent::Done(_)) => break,
@@ -425,21 +506,65 @@ async fn stream_invocation(
         }
     }
     for (index, call) in tool_calls {
-        emit_tool_call(&handle, &invocation_id, index, &call)?;
+        emit_tool_call(handle, invocation_id, index, &call)?;
+        emitted = true;
     }
-    if failed.is_none() && !session.cancel.is_cancelled() {
-        emit_text(&handle, &invocation_id, "", true)?;
+    if let Some(message) = failed {
+        return Ok(StreamDrive::Failed { message, emitted });
     }
-    let end = pb::RunInferenceServerMessage {
-        message: Some(pb::run_inference_server_message::Message::InvocationEnd(
-            pb::RunInferenceInvocationEnd {
-                invocation_id,
-                error: failed.map(|message| pb::InvocationError { code: 1, message }),
-            },
-        )),
+    if !cancel.is_cancelled() {
+        emit_text(handle, invocation_id, "", true)?;
+    }
+    Ok(StreamDrive::Completed)
+}
+
+fn input_budget(request: Option<&pb::InferenceStreamRequest>) -> u64 {
+    let window = request
+        .and_then(|request| request.requested_model.as_ref())
+        .and_then(|model| {
+            model
+                .parameters
+                .iter()
+                .find(|parameter| parameter.id == "context")
+                .and_then(|parameter| parse_context_tokens(&parameter.value))
+        })
+        .map(|tokens| u64::try_from(tokens).unwrap_or(u64::MAX))
+        .unwrap_or(DEFAULT_CONTEXT_TOKENS);
+    window.saturating_sub(OUTPUT_RESERVE).max(4_096)
+}
+
+fn fit_history(
+    instructions: &str,
+    tools: &[ToolDefinition],
+    history: &[ProjectedMessage],
+    budget: u64,
+) -> Vec<ProjectedMessage> {
+    let prompt = PromptSpec {
+        instructions: instructions.to_string(),
+        tools: tools.to_vec(),
     };
-    handle.emit_frame(connect::encode_message(&end)?);
-    Ok(())
+    let mut kept = history.to_vec();
+    while kept.len() > 1 && crate::model::estimate_context_tokens(&prompt, &kept) > budget {
+        kept.remove(0);
+        while kept.len() > 1
+            && kept
+                .first()
+                .is_some_and(|message| message.role == Role::Tool)
+        {
+            kept.remove(0);
+        }
+    }
+    kept
+}
+
+fn context_limit(message: &str) -> Option<u64> {
+    let marker = "maximum context length is ";
+    let start = message.find(marker)? + marker.len();
+    let digits = message[start..]
+        .chars()
+        .take_while(|character| character.is_ascii_digit())
+        .collect::<String>();
+    digits.parse().ok()
 }
 
 fn spawn_heartbeat(handle: crate::cursor::transport::TransportHandle, stop: CancellationToken) {
@@ -870,5 +995,57 @@ mod tests {
         let results = tool_results(&message);
         assert_eq!(results[0].call_id, "call-1");
         assert_eq!(results[0].content, "file text");
+    }
+
+    #[test]
+    fn trims_old_history_and_does_not_start_on_a_tool_result() {
+        let long = "token ".repeat(4_000);
+        let mut history = vec![ProjectedMessage {
+            message_id: "assistant".into(),
+            role: Role::Assistant,
+            content: ProjectedContent::Assistant {
+                text: String::new(),
+                thinking: String::new(),
+                replay_state: None,
+                calls: vec![ToolCallContent {
+                    index: 0,
+                    call_id: "call-1".into(),
+                    name: "Read".into(),
+                    arguments: serde_json::json!({}),
+                }],
+            },
+        }];
+        history.push(ProjectedMessage {
+            message_id: "tool".into(),
+            role: Role::Tool,
+            content: ProjectedContent::ToolResult(ToolResultContent {
+                call_id: "call-1".into(),
+                name: "Read".into(),
+                content: long.clone(),
+                is_error: false,
+                image: None,
+                provider_parts: Vec::new(),
+            }),
+        });
+        history.push(ProjectedMessage {
+            message_id: "user".into(),
+            role: Role::User,
+            content: ProjectedContent::Parts(vec![ContentPart::Text { text: long }]),
+        });
+        let kept = fit_history("", &[], &history, 2_000);
+        assert!(kept.len() < history.len());
+        assert!(kept
+            .first()
+            .is_none_or(|message| message.role != Role::Tool));
+        assert_eq!(
+            kept.last().map(|message| message.message_id.as_str()),
+            Some("user")
+        );
+        assert_eq!(
+            context_limit(
+                "maximum context length is 262144 tokens. However, your prompt contains at least 262145"
+            ),
+            Some(262_144)
+        );
     }
 }

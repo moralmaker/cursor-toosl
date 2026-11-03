@@ -48,6 +48,12 @@ fn open_terminal_with_command(command: String) -> tauri::Result<()> {
     }
     #[cfg(target_os = "windows")]
     {
+        if !windows_ca_install_command(&command) {
+            return Err(tauri::Error::from(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "terminal command is not the local CA install command",
+            )));
+        }
         Command::new("cmd")
             .args(["/C", "start", "cmd", "/K", &command])
             .spawn()?;
@@ -55,6 +61,12 @@ fn open_terminal_with_command(command: String) -> tauri::Result<()> {
     }
     #[cfg(target_os = "linux")]
     {
+        if !linux_ca_install_command(&command) {
+            return Err(tauri::Error::from(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "terminal command is not the local CA install command",
+            )));
+        }
         const TERMINALS: &[(&str, &[&str])] = &[
             ("x-terminal-emulator", &["-e"]),
             ("gnome-terminal", &["--"]),
@@ -84,6 +96,61 @@ fn open_terminal_with_command(command: String) -> tauri::Result<()> {
 #[derive(serde::Deserialize)]
 struct OpenExternalUrlRequest {
     url: String,
+}
+
+#[cfg(any(test, target_os = "windows"))]
+fn windows_ca_install_command(command: &str) -> bool {
+    let Some(path) = command.strip_prefix("certutil -addstore -f Root \"") else {
+        return false;
+    };
+    let Some(path) = path.strip_suffix('"') else {
+        return false;
+    };
+    !path.is_empty()
+        && !path.contains([
+            '"', '&', '|', '%', '^', '<', '>', '`', '$', ';', '!', '\n', '\r', '\0',
+        ])
+}
+
+#[cfg(any(test, target_os = "linux"))]
+fn linux_ca_install_command(command: &str) -> bool {
+    let Some(rest) = command.strip_prefix("sudo cp '") else {
+        return false;
+    };
+    let Some((source, rest)) = read_shell_single_quoted(rest) else {
+        return false;
+    };
+    let Some(rest) = rest.strip_prefix(" '") else {
+        return false;
+    };
+    let Some((destination, rest)) = read_shell_single_quoted(rest) else {
+        return false;
+    };
+    !source.is_empty()
+        && !destination.is_empty()
+        && !source.contains(['\n', '\r', '\0'])
+        && !destination.contains(['\n', '\r', '\0'])
+        && matches!(
+            rest,
+            " && sudo update-ca-certificates" | " && sudo update-ca-trust extract"
+        )
+}
+
+#[cfg(any(test, target_os = "linux"))]
+fn read_shell_single_quoted(input: &str) -> Option<(String, &str)> {
+    let mut value = String::new();
+    let mut rest = input;
+    loop {
+        let end = rest.find('\'')?;
+        value.push_str(&rest[..end]);
+        rest = &rest[end + 1..];
+        if let Some(escaped) = rest.strip_prefix("\\''") {
+            value.push('\'');
+            rest = escaped;
+            continue;
+        }
+        return Some((value, rest));
+    }
 }
 
 fn open_external_url(app: &AppHandle, url: &str) -> std::result::Result<(), String> {
@@ -306,4 +373,28 @@ pub fn run() -> ExitCode {
     });
 
     ExitCode::SUCCESS
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{linux_ca_install_command, windows_ca_install_command};
+
+    #[test]
+    fn accepts_only_the_generated_ca_install_commands() {
+        assert!(windows_ca_install_command(
+            r#"certutil -addstore -f Root "C:\Users\moral\.cursor-tools-v3\ca\ca.crt""#
+        ));
+        assert!(!windows_ca_install_command(
+            r#"certutil -addstore -f Root "C:\ca.crt" & calc"#
+        ));
+        assert!(linux_ca_install_command(
+            "sudo cp '/home/moral/.cursor-tools-v3/ca/ca.crt' '/usr/local/share/ca-certificates/cursor-tools-local-ca.crt' && sudo update-ca-certificates"
+        ));
+        assert!(linux_ca_install_command(
+            "sudo cp '/home/moral/a'\\''b.crt' '/etc/pki/ca-trust/source/anchors/cursor-tools-local-ca.crt' && sudo update-ca-trust extract"
+        ));
+        assert!(!linux_ca_install_command(
+            "sudo cp '/tmp/ca.crt' '/usr/local/share/ca-certificates/cursor-tools-local-ca.crt' && sudo update-ca-certificates; id"
+        ));
+    }
 }

@@ -1,6 +1,6 @@
 //! Fetches and extracts web content.
 use std::{
-    net::{IpAddr, Ipv4Addr, Ipv6Addr},
+    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
     time::Duration,
 };
 
@@ -263,6 +263,33 @@ fn decode(bytes: &[u8], content_type: &str) -> Result<String, FetchError> {
         return Err(failure("response contains malformed text"));
     }
     Ok(text.into_owned())
+}
+
+pub(crate) async fn resolve_public_http_url(
+    value: &str,
+) -> Result<(Url, Vec<SocketAddr>), FetchError> {
+    let url = parse_url(value)?;
+    let host = url
+        .host_str()
+        .ok_or_else(|| failure("URL is missing a host"))?;
+    let port = url
+        .port_or_known_default()
+        .ok_or_else(|| failure("URL has no usable port"))?;
+    let addresses = lookup_host((host, port))
+        .await
+        .map_err(|error| failure(format!("DNS lookup failed: {error}")))?
+        .collect::<Vec<_>>();
+    if addresses.is_empty() {
+        return Err(failure("DNS lookup returned no addresses"));
+    }
+    let domain = matches!(url.host(), Some(Host::Domain(_)));
+    if addresses
+        .iter()
+        .any(|address| !safe_resolution(address.ip(), domain))
+    {
+        return Err(failure("URL resolves to a non-public address"));
+    }
+    Ok((url, addresses))
 }
 
 fn parse_url(value: &str) -> Result<Url, FetchError> {

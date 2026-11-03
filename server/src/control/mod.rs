@@ -267,12 +267,37 @@ fn local_origin(origin: &HeaderValue) -> bool {
         Some(Host::Domain(host)) => {
             host.eq_ignore_ascii_case("localhost") || host.eq_ignore_ascii_case("tauri.localhost")
         }
-        Some(Host::Ipv4(address)) => {
-            address.is_loopback() || address.is_private() || address.is_link_local()
-        }
-        Some(Host::Ipv6(address)) => {
-            address.is_loopback() || address.is_unique_local() || address.is_unicast_link_local()
-        }
+        Some(Host::Ipv4(address)) => address.is_loopback(),
+        Some(Host::Ipv6(address)) => address.is_loopback(),
         None => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::http::HeaderValue;
+
+    use super::local_origin;
+
+    #[test]
+    fn cors_allows_only_loopback_and_tauri_origins() {
+        for origin in [
+            "tauri://localhost",
+            "http://127.0.0.1:1420",
+            "http://localhost:1420",
+            "https://tauri.localhost",
+            "http://[::1]:1420",
+        ] {
+            assert!(local_origin(&HeaderValue::from_static(origin)), "{origin}");
+        }
+        for origin in [
+            "http://192.168.1.20",
+            "http://10.0.0.5:3000",
+            "http://169.254.169.254",
+            "https://example.com",
+            "http://127.0.0.1:1420/evil",
+        ] {
+            assert!(!local_origin(&HeaderValue::from_static(origin)), "{origin}");
+        }
     }
 }

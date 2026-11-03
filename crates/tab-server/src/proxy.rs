@@ -181,15 +181,9 @@ fn read_device_id(headers: &HeaderMap) -> Result<String, &'static str> {
     Ok(value.to_string())
 }
 
-fn client_ip(headers: &HeaderMap, addr: SocketAddr) -> String {
-    headers
-        .get("x-forwarded-for")
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.split(',').next())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToString::to_string)
-        .unwrap_or_else(|| addr.ip().to_string())
+fn client_ip(_headers: &HeaderMap, addr: SocketAddr) -> String {
+    // 客户端可以自己写 X-Forwarded-For。限流只认这条连接的对端地址。
+    addr.ip().to_string()
 }
 
 fn should_retry(status: StatusCode) -> bool {
@@ -239,5 +233,16 @@ mod tests {
             read_device_id(&headers).unwrap(),
             "11111111-1111-4111-8111-111111111111"
         );
+    }
+
+    #[test]
+    fn rate_limit_address_ignores_forwarded_for() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "x-forwarded-for",
+            HeaderValue::from_static("1.2.3.4, 10.0.0.8"),
+        );
+        let addr = "203.0.113.9:443".parse().unwrap();
+        assert_eq!(client_ip(&headers, addr), "203.0.113.9");
     }
 }
