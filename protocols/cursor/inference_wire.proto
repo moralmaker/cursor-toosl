@@ -1,0 +1,202 @@
+syntax = "proto3";
+
+package inference.v1;
+
+// Cursor 3.27 InferenceService messages used by the HTTP Bidi fallback.
+// Field numbers match the client. Unknown fields are ignored.
+
+message RunInferenceClientMessage {
+  oneof message {
+    RunInferenceRunRequest run_request = 1;
+    RunInferenceInvokeModel invoke_model = 2;
+    RunInferenceCancelInvocation cancel_invocation = 3;
+    RunInferenceFinishRun finish_run = 4;
+    RunInferenceClientHeartbeat client_heartbeat = 5;
+    RunInferenceAgentEvent agent_event = 6;
+    RunInferenceIgnored run_request_log = 7;
+    RunInferenceIgnored resolve_subagent_models = 9;
+    RunInferenceIgnored client_first_call_timings = 10;
+  }
+}
+
+// Inner fields are skipped. These messages only need to be recognized so the
+// append is acknowledged or forwarded instead of decoded as AgentClientMessage.
+message RunInferenceClientHeartbeat {}
+
+message RunInferenceAgentEvent {}
+
+message RunInferenceIgnored {}
+
+message RunInferenceRunRequest {
+  string conversation_id = 1;
+  RequestedModel requested_model = 3;
+  repeated RoutingMessage routing_conversation = 4;
+  string agent_mode = 5;
+}
+
+message RoutingMessage {
+  int32 role = 1;
+  string text = 2;
+}
+
+message RequestedModel {
+  string model_id = 1;
+  bool max_mode = 2;
+  repeated ModelParameter parameters = 3;
+}
+
+message ModelParameter {
+  string id = 1;
+  string value = 2;
+}
+
+message RunInferenceInvokeModel {
+  string invocation_id = 1;
+  InferenceStreamRequest request = 2;
+}
+
+message InferenceStreamRequest {
+  repeated InferenceCoreMessage messages = 1;
+  repeated InferenceAgentTool tools = 2;
+  string model_id = 5;
+  RequestedModel requested_model = 7;
+}
+
+message InferenceAgentTool {
+  string name = 1;
+  string description = 2;
+  JsonStruct parameters = 3;
+}
+
+message InferenceCoreMessage {
+  int32 role = 1;
+  oneof content {
+    string text = 2;
+    InferenceContentParts parts = 3;
+    InferenceToolResultContent tool_content = 6;
+  }
+  repeated InferenceToolCall tool_calls = 4;
+}
+
+message InferenceToolCall {
+  string tool_call_id = 1;
+  string tool_name = 2;
+  JsonStruct args = 3;
+  string raw_tool_call_args = 4;
+}
+
+message InferenceToolResultContent {
+  repeated InferenceToolResultPart parts = 1;
+}
+
+message InferenceToolResultPart {
+  string tool_call_id = 1;
+  string tool_name = 2;
+  JsonValue result = 3;
+  bool is_error = 4;
+}
+
+// Wire-compatible with google.protobuf.Struct / Value.
+message JsonStruct {
+  map<string, JsonValue> fields = 1;
+}
+
+message JsonList {
+  repeated JsonValue values = 1;
+}
+
+message JsonValue {
+  oneof kind {
+    int32 null_value = 1;
+    double number_value = 2;
+    string string_value = 3;
+    bool bool_value = 4;
+    JsonStruct struct_value = 5;
+    JsonList list_value = 6;
+  }
+}
+
+message InferenceContentParts {
+  repeated InferenceContentPart parts = 1;
+}
+
+message InferenceContentPart {
+  InferenceTextPart text = 1;
+}
+
+message InferenceTextPart {
+  string text = 1;
+}
+
+message RunInferenceCancelInvocation {
+  string invocation_id = 1;
+}
+
+message RunInferenceFinishRun {
+  bool aborted = 1;
+}
+
+message RunInferenceServerMessage {
+  oneof message {
+    RunInferenceHeartbeat heartbeat = 1;
+    RunInferenceRunReady run_ready = 2;
+    RunInferenceInvocationResponse invocation_response = 3;
+    RunInferenceInvocationEnd invocation_end = 4;
+  }
+}
+
+message RunInferenceHeartbeat {
+  bool accepts_speculative_invocations = 1;
+}
+
+message RunInferenceRunReady {
+  RequestedModel resolved_model = 1;
+  RunInferencePromptModelMetadata prompt_model_metadata = 4;
+}
+
+// Cursor's local agent loop refuses a model when this message is absent.
+// vendor must be one of anthropic/openai/google/xai/zai/cursor/unknown, and
+// prompt_version must be one of latest/haiku/gpt5-codex/codex-cloud/cursor-0226/dsv3-1018/dsv3-1205.
+message RunInferencePromptModelMetadata {
+  string vendor = 1;
+  string prompt_version = 2;
+  string reasoning_effort = 30;
+  bool use_dsv3_harness = 31;
+  int32 agent_token_limit = 32;
+  string self_identity_name = 44;
+}
+
+message RunInferenceInvocationResponse {
+  string invocation_id = 1;
+  InferenceStreamResponse response = 2;
+}
+
+message InferenceStreamResponse {
+  oneof response {
+    InferenceTextStreamPart text_part = 1;
+    InferenceToolCallStreamPart tool_call_part = 2;
+  }
+}
+
+message InferenceToolCallStreamPart {
+  string tool_call_id = 1;
+  string tool_name = 2;
+  string args = 3;
+  bool is_complete = 4;
+  optional int32 tool_index = 5;
+}
+
+message InferenceTextStreamPart {
+  string text = 1;
+  bool is_final = 2;
+}
+
+message RunInferenceInvocationEnd {
+  string invocation_id = 1;
+  InvocationError error = 2;
+}
+
+message InvocationError {
+  int32 code = 1;
+  string message = 2;
+}
